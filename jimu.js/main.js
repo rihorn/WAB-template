@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,8 +21,6 @@ define([
     './WidgetManager',
     './FeatureActionManager',
     './SelectionManager',
-    './DataSourceManager',
-    './FilterManager',
     'dojo/_base/html',
     'dojo/_base/lang',
     'dojo/_base/array',
@@ -33,6 +31,7 @@ define([
     'dojo/Deferred',
     'dojo/promise/all',
     'dojo/io-query',
+    'dojo/domReady!',
     'esri/config',
     'esri/request',
     'esri/urlUtils',
@@ -41,18 +40,14 @@ define([
     './utils',
     'require',
     'dojo/i18n',
-    'dojo/i18n!./nls/main',
-    'esri/main',
-    'dojo/ready'
+    'dojo/i18n!./nls/main'
   ],
   function(ConfigManager, LayoutManager, DataManager, WidgetManager, FeatureActionManager, SelectionManager,
-    DataSourceManager, FilterManager, html, lang, array, on, mouse,
-    topic, cookie, Deferred, all, ioquery, esriConfig, esriRequest, urlUitls, IdentityManager,
-    portalUrlUtils, jimuUtils, require, i18n, mainBundle, esriMain, dojoReady) {
+     html, lang, array, on, mouse,
+    topic, cookie, Deferred, all, ioquery, domReady, esriConfig, esriRequest, urlUitls, IdentityManager,
+    portalUrlUtils, jimuUtils, require, i18n, mainBundle) {
     /* global jimuConfig:true */
     var mo = {}, appConfig;
-
-    window.topic = topic;
 
     //set the default timeout to 3 minutes
     esriConfig.defaults.io.timeout = 60000 * 3;
@@ -72,22 +67,19 @@ define([
 
     //jimu nls
     window.jimuNls = mainBundle;
-    window.apiNls = esriMain.bundle;
 
     IdentityManager.setProtocolErrorHandler(function() {
       return true;
     });
 
     var ancestorWindow = jimuUtils.getAncestorWindow();
-    var parentHttps = false, patt = /^http(s?):\/\//gi;
+    var parentHttps = false;
 
     try {
       parentHttps = ancestorWindow.location.href.indexOf("https://") === 0;
     } catch (err) {
-      //if it's in different domain, we do not force https
-
-      // console.log(err);
-      // parentHttps = window.location.protocol === "https:";
+      console.log(err);
+      parentHttps = window.location.protocol === "https:";
     }
 
     esriRequest.setRequestPreCallback(function(ioArgs) {
@@ -97,6 +89,7 @@ define([
 
       //use https protocol
       if (parentHttps) {
+        var patt = /^http(s?):\/\//gi;
         ioArgs.url = ioArgs.url.replace(patt, '//');
       }
 
@@ -105,57 +98,22 @@ define([
       //Detect if request conatins the queryRelatedRecords operation
       //and then change the source url for that request to the corresponding mapservice.
       if (ioArgs.url.indexOf("/queryRelatedRecords?") !== -1) {
-        var serviceUrl = ioArgs.url;
-        var proxyUrl = esriConfig.defaults.io.proxyUrl;
-        if(proxyUrl && ioArgs.url.indexOf(proxyUrl + "?") === 0){
-          //This request uses proxy.
-          //We should remove proxyUrl to get the real service url to detect if it is a hosted service or not.
-          serviceUrl = ioArgs.url.replace(proxyUrl + "?", "");
-        }
-        if (!jimuUtils.isHostedService(serviceUrl)) { // hosted service doesn't depend on MapServer
+        if (!jimuUtils.isHostedService(ioArgs.url)) { // hosted service doesn't depend on MapServer
           ioArgs.url = ioArgs.url.replace("FeatureServer", "MapServer");
         }
       }
 
-      //For getJobStatus of gp service running in safari.
-      //The url of requests sent to getJobStatus is the same. In safari, the requests will be blocked except
-      //the first one. Here a preventCache tag is added for this kind of request.
-      var reg = /GPServer\/.+\/jobs/;
-      if (reg.test(ioArgs.url)) {
-        ioArgs.preventCache = new Date().getTime();
-      }
-
       // Use proxies to replace the premium content
-      if(!window.isBuilder && appConfig && !appConfig.mode) {
-        if (appConfig.appProxies && appConfig.appProxies.length > 0) {
-          array.some(appConfig.appProxies, function(proxyItem) {
-            var sourceUrl = proxyItem.sourceUrl, proxyUrl = proxyItem.proxyUrl;
-            if (parentHttps) {
-              sourceUrl = sourceUrl.replace(patt, '//');
-              proxyUrl = proxyUrl.replace(patt, '//');
-            }
-            if(ioArgs.url.indexOf(sourceUrl) >= 0) {
-              ioArgs.url = ioArgs.url.replace(sourceUrl, proxyUrl);
-              return true;
-            }
-          });
-        }
-        if (appConfig.map.appProxy) {
-          array.some(appConfig.map.appProxy.proxyItems, function(proxyItem) {
-            if (!proxyItem.useProxy || !proxyItem.proxyUrl) {
-              return false;
-            }
-            var sourceUrl = proxyItem.sourceUrl, proxyUrl = proxyItem.proxyUrl;
-            if (parentHttps) {
-              sourceUrl = sourceUrl.replace(patt, '//');
-              proxyUrl = proxyUrl.replace(patt, '//');
-            }
-            if (ioArgs.url.indexOf(sourceUrl) >= 0) {
-              ioArgs.url = ioArgs.url.replace(sourceUrl, proxyUrl);
-              return true;
-            }
-          });
-        }
+      if(!window.isBuilder && appConfig &&
+          !appConfig.mode &&
+          appConfig.appProxies &&
+          appConfig.appProxies.length > 0) {
+        array.some(appConfig.appProxies, function(proxyItem) {
+          if(ioArgs.url.indexOf(proxyItem.sourceUrl) >= 0) {
+            ioArgs.url = ioArgs.url.replace(proxyItem.sourceUrl, proxyItem.proxyUrl);
+            return true;
+          }
+        });
       }
 
       return ioArgs;
@@ -190,12 +148,6 @@ define([
       }
     };
 
-    // Polyfill isNaN for IE11
-    // Source: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isNaN
-    Number.isNaN = Number.isNaN || function (value) {
-      return value !== value;
-    };
-
     /*jshint unused: false*/
     if (typeof jimuConfig === 'undefined') {
       jimuConfig = {};
@@ -211,11 +163,10 @@ define([
       breakPoints: [600, 1280]
     }, jimuConfig);
 
-
-    window.wabVersion = '2.10';
-    // window.productVersion = 'Online 6.3';
-    window.productVersion = 'Web AppBuilder for ArcGIS (Developer Edition) 2.10';
-    // window.productVersion = 'Portal for ArcGIS 10.5.1';
+    window.wabVersion = '2.1';
+    // window.productVersion = 'Online 4.2';
+    window.productVersion = 'Web AppBuilder for ArcGIS (Developer Edition) 2.1';
+    // window.productVersion = 'Portal for ArcGIS 10.4 Beta2';
 
     function initApp() {
       var urlParams, configManager, layoutManager;
@@ -231,16 +182,12 @@ define([
         }
       }
 
-      if(urlParams.mode){
-        html.setStyle(jimuConfig.loadingId, 'display', 'none');
-        html.setStyle(jimuConfig.mainPageId, 'display', 'block');
-      }
-      //the order of initialize these managers does mater because this will affect the order of event listener.
       DataManager.getInstance(WidgetManager.getInstance());
       FeatureActionManager.getInstance();
       SelectionManager.getInstance();
-      DataSourceManager.getInstance();
-      FilterManager.getInstance();
+
+      html.setStyle(jimuConfig.loadingId, 'display', 'none');
+      html.setStyle(jimuConfig.mainPageId, 'display', 'block');
 
       layoutManager = LayoutManager.getInstance({
         mapId: jimuConfig.mapId,
@@ -252,33 +199,16 @@ define([
       configManager.loadConfig();
       //load this module here to make load modules and load app parallelly
       require(['dynamic-modules/preload']);
-
-      //temp fix for this issue: https://devtopia.esri.com/WebGIS/arcgis-webappbuilder/issues/14082
-      dojoReady(function(){
-        setTimeout(function(){
-          html.removeClass(document.body, 'dj_a11y');
-        }, 50);
-      });
     }
 
     function getUrlParams() {
       var s = window.location.search,
         p;
-      // params that don't need to `sanitizeHTML`
-      var exceptUrlParams = {
-        query: true
-      };
       if (s === '') {
         return {};
       }
 
       p = ioquery.queryToObject(s.substr(1));
-
-      for(var k in p){
-        if(!exceptUrlParams[k]){
-          p[k] = jimuUtils.sanitizeHTML(p[k]);
-        }
-      }
       return p;
     }
 
@@ -290,21 +220,10 @@ define([
       topic.subscribe("appConfigChanged", onAppConfigChanged);
     }
 
-    function onAppConfigChanged(_appConfig, reason){
+    function onAppConfigChanged(_appConfig){
       appConfig = _appConfig;
-
-      if(reason === 'loadingPageChange'){
-        return;
-      }
-
-      html.setStyle(jimuConfig.loadingId, 'display', 'none');
-      html.setStyle(jimuConfig.mainPageId, 'display', 'block');
     }
-    //ie css
-    var ieVersion = jimuUtils.has('ie');
-    if(ieVersion > 10){
-      html.addClass(document.body, 'ie-gte-10');
-    }
+
     mo.initApp = initApp;
     return mo;
   });

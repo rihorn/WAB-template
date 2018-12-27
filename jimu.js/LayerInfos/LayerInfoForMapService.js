@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,9 +24,10 @@ define([
   'dojo/topic',
   './LayerInfo',
   'esri/request',
-  'esri/lang'
+  'esri/lang',
+  './LayerInfoFactory'
 ], function(declare, array, lang, Deferred, Json, aspect, topic, LayerInfo,
-esriRequest, esriLang) {
+esriRequest, esriLang, LayerInfoFactory) {
   return declare(LayerInfo, {
 
     _legendInfo: null,
@@ -34,57 +35,20 @@ esriRequest, esriLang) {
     controlPopupInfo: null,
     _jsapiLayerInfos: null,
     _oldFilter: null,
-    //_subLayerInfoIndex: null,
-    _subLayerVisible: null,
-    //_serviceDefinitionBuffer: null,
 
-    constructor: function(/*operLayer, map*/) {
-    },
+    constructor: function(operLayer, map) {
 
-    /***************************************************
-     * methods about init
-     * **************************************************/
-
-    init: function() {
       //other initial methods depend on '_jsapiLayerInfos', so must init first.
       this._initJsapiLayerInfos();
+
       /*jshint unused: false*/
-      this._initSubLayerVisible();
+      this.initSubLayerVisible();
+
       // init _subLayerIdent.
       this._initSubLayerIdent();
+
       // init control popup
       this._initControlPopup();
-
-      this.inherited(arguments);
-
-      this._needToRefresh().then(lang.hitch(this, function(result) {
-        if(result) {
-          this.update();
-          this._getLayerInfosObj()._onLayersUpdated(this, this);
-        }
-      }));
-    },
-
-    _needToRefresh: function() {
-      var retDef = new Deferred();
-      if(this.layerObject.dynamicLayerInfos &&
-         this.isRootLayer() &&
-         this.isItemLayer() &&
-        !this.originOperLayer.thematicGroup) {
-        this.getItemInfo().then(lang.hitch(this, function(itemInfo) {
-          var itemData = itemInfo.getItemData();
-          var thematicGroup = itemData && itemData.thematicGroup;
-          if(thematicGroup) {
-            this.originOperLayer.thematicGroup = thematicGroup;
-            retDef.resolve(true);
-          } else {
-            retDef.resolve(false);
-          }
-        }));
-      } else {
-        retDef.resolve(false);
-      }
-      return retDef;
     },
 
     _initOldFilter: function() {
@@ -107,27 +71,11 @@ esriRequest, esriLang) {
                 //esriLang.isDefined(subLayersSetting.subLayerIds) &&
                 esriLang.isDefined(subLayersSetting.defaultVisibility));
       });
-      if(this.layerObject.dynamicLayerInfos) {
-        if(this.originOperLayer.thematicGroup &&
-           this.originOperLayer.thematicGroup.layerIds &&
-           this.originOperLayer.thematicGroup.layerIds.length >= 0) {
-          this._jsapiLayerInfos = array.filter(this.layerObject.dynamicLayerInfos, function(dynamicLayerInfo) {
-            var index = this.originOperLayer.thematicGroup.layerIds.indexOf(dynamicLayerInfo.id);
-            if(index > -1) {
-              return true;
-            } else {
-              return false;
-            }
-          }, this);
-        } else {
-          this._jsapiLayerInfos = this.layerObject.dynamicLayerInfos;
-        }
-      } else if (webmapLayerInfos.length > 0) {
+      if(webmapLayerInfos.length > 0) {
         this._jsapiLayerInfos = webmapLayerInfos;
       } else {
         this._jsapiLayerInfos = this.layerObject.layerInfos;
       }
-      // this._jsapiLayerInfos = this.layerObject.dynamicLayerInfos;
     },
 
     _initControlPopup: function() {
@@ -156,37 +104,133 @@ esriRequest, esriLang) {
       };
     },
 
+    initSubLayerVisible: function(visibleLayersParam) {
+      // this.subLayerVisible = [];
+      // //the subLayerVisible has the same index width layerInfos.
+      // this.subLayerVisible[this.layerObject.layerInfos.length - 1] = 0;
 
-    /***************************************************
-     * methods for control visiblility
-     * **************************************************/
-    _initSubLayerVisible: function(visibleLayersParam) {
-      this._subLayerVisible = {};
+      this.subLayerVisible = {};
 
       for (var i = 0; i < this._jsapiLayerInfos.length; i++) {
-        this._subLayerVisible[this._jsapiLayerInfos[i].id] = false;
+        this.subLayerVisible[this._jsapiLayerInfos[i].id] = 0;
       }
 
       if(visibleLayersParam) {
         array.forEach(visibleLayersParam, function(visibleLayer) {
-          this._subLayerVisible[visibleLayer] = true;
+          this.subLayerVisible[visibleLayer]++;
         }, this);
       } else if (this.originOperLayer.visibleLayers) {
         // according to webmap info
         array.forEach(this.originOperLayer.visibleLayers, function(visibleLayer) {
-          this._subLayerVisible[visibleLayer] = true;
+          this.subLayerVisible[visibleLayer]++;
         }, this);
       } else {
         // according to mapserver info
         array.forEach(this._jsapiLayerInfos, function(layerInfo) {
           if (layerInfo.defaultVisibility) {
-            this._subLayerVisible[layerInfo.id] = true;
+            this.subLayerVisible[layerInfo.id]++;
           }
         }, this);
       }
     },
 
-    _initVisible: function() {
+    getExtent: function() {
+      var extent = this.originOperLayer.layerObject.fullExtent ||
+        this.originOperLayer.layerObject.initialExtent;
+      return this._convertGeometryToMapSpatialRef(extent);
+    },
+
+    _resetLayerObjectVisiblity: function(layerOptions) {
+      var layerOption  = layerOptions ? layerOptions[this.id]: null;
+      if(layerOptions) {
+        //reste visibility for parent layer.
+        if(layerOption) {
+          this.layerObject.setVisibility(layerOption.visible);
+        }
+
+        //reset visibility of sublayers.
+        if (this.layerObject.declaredClass !== 'esri.layers.ArcGISDynamicMapServiceLayer') {
+          return;
+        }
+        // 1, init this.subLayerVisible according to layerOptions
+        var haseConfiguredInLayerOptionsflag = false;
+        var visibleLayersForUpdateSubLayerVisible = [];
+        array.forEach(this._jsapiLayerInfos, function(jsapiLayerInfo) {
+          var absoluteSublayerId = this.id + '_' + jsapiLayerInfo.id;
+          if(esriLang.isDefined(layerOptions[absoluteSublayerId])) {
+            haseConfiguredInLayerOptionsflag = true;
+            if(layerOptions[absoluteSublayerId].visible) {
+              visibleLayersForUpdateSubLayerVisible.push(jsapiLayerInfo.id);
+            }
+          }
+        }, this);
+
+        if(haseConfiguredInLayerOptionsflag) {
+          // init sublayerVisible and call initVisible for all subLayers.
+          this.initSubLayerVisible(visibleLayersForUpdateSubLayerVisible);
+          this.traversal(function(layerInfo) {
+            layerInfo.initVisible();
+          });
+
+          // 2, reset sublayers visibility.
+          var subLayersVisible = {};
+          this.traversal(function(layerInfo) {
+            if (layerInfo.getSubLayers().length === 0) {
+              subLayersVisible[layerInfo.originOperLayer.mapService.subId] =
+                layerInfo.isVisbleOrInvisilbe();
+            }
+          });
+          this.setSubLayerVisible(subLayersVisible);
+        }
+      }
+    },
+
+    // _resetLayerObjectVisiblityBeforeInit: function() {
+    //   if(this._layerOptions) {
+    //     //reste visibility fo parent layer.
+    //     if(this._layerOption) {
+    //       this.layerObject.setVisibility(this._layerOption.visible);
+    //     }
+
+    //     //reste visibles of sublayer.
+    //     var visibleLayers = [];
+    //     var visibleLayersForUpdateSubLayerVisible;
+    //     var visibleLayersForSetVisibleLayers;
+    //     var convertVisibleLayersResult;
+    //     var haseConfiguredInLayerOptionsflag = false;
+    //     array.forEach(this._jsapiLayerInfos, function(jsapiLayerInfo) {
+    //       var absoluteSublayerId = this.id + '_' + jsapiLayerInfo.id;
+    //       if(esriLang.isDefined(this._layerOptions[absoluteSublayerId]) &&
+    //          !this._isGroupLayerBySubId(jsapiLayerInfo.id)) {
+    //         haseConfiguredInLayerOptionsflag = true;
+    //         if(this._layerOptions[absoluteSublayerId].visible) {
+    //           visibleLayers.push(jsapiLayerInfo.id);
+    //         }
+    //       }
+    //     }, this);
+
+    //     convertVisibleLayersResult =
+    //       this._converVisibleLayers(visibleLayers);
+    //     visibleLayersForUpdateSubLayerVisible =
+    //       convertVisibleLayersResult.visibleLayersForUpdateSubLayerVisible;
+    //     visibleLayersForSetVisibleLayers =
+    //       convertVisibleLayersResult.visibleLayersForSetVisibleLayers;
+
+    //     if((visibleLayersForSetVisibleLayers.length > 0 || haseConfiguredInLayerOptionsflag) &&
+    //         this.layerObject.setVisibleLayers) {
+    //       // init sublayerVisible and call initVisible for all subLayers.
+    //       this.initSubLayerVisible(visibleLayersForUpdateSubLayerVisible);
+    //       this.traversal(function(layerInfo) {
+    //         layerInfo.initVisible();
+    //       });
+    //       //recall setVisibleLayers()
+    //       this.layerObject.setVisibleLayers(visibleLayersForSetVisibleLayers);
+    //     }
+    //   }
+    // },
+
+
+    initVisible: function() {
       this._visible = this.originOperLayer.layerObject.visible;
     },
 
@@ -195,7 +239,7 @@ esriRequest, esriLang) {
       this._visible = visible;
     },
 
-    _setSubLayerVisible: function(layersVisible) {
+    setSubLayerVisible: function(layersVisible) {
       // summary:
       //   set seblayer visible
       // description:
@@ -212,14 +256,10 @@ esriRequest, esriLang) {
       //var convertVisibleLayersResult = this._converVisibleLayers(visibleLayers);
       //visibleLayers = convertVisibleLayersResult.visibleLayersForSetVisibleLayers;
 
-      // remove group layers from layerObject.visibleLayers,
-      // and remove layers if that parent layer is invisble.
+      // remove group layers from layerObject.visibleLayers.
       array.forEach(visibleLayers, function(subLayerIndex) {
         if(!this._isGroupLayerBySubId(subLayerIndex)) {
-          var subLayerInfo = this._subLayerInfoIndex[subLayerIndex];
-          if(subLayerInfo && subLayerInfo._isAllSubLayerVisibleOnPath()) {
-            tempVisibleLayers.push(subLayerIndex);
-          }
+          tempVisibleLayers.push(subLayerIndex);
         }
       }, this);
 
@@ -247,129 +287,7 @@ esriRequest, esriLang) {
       this.originOperLayer.layerObject.setVisibleLayers(ary);
     },
 
-    // _resetLayerObjectVisiblity: function(layerOptions) {
-    //   var layerOption  = layerOptions ? layerOptions[this.id]: null;
-    //   if(layerOptions) {
-    //     //reste visibility for parent layer.
-    //     if(layerOption) {
-    //       this.layerObject.setVisibility(layerOption.visible);
-    //     }
-
-    //     //reset visibility of sublayers.
-    //     if (this.layerObject.declaredClass !== 'esri.layers.ArcGISDynamicMapServiceLayer') {
-    //       return;
-    //     }
-    //     // 1, init this._subLayerVisible according to layerOptions
-    //     var haseConfiguredInLayerOptionsflag = false;
-    //     var visibleLayersForUpdateSubLayerVisible = [];
-    //     array.forEach(this._jsapiLayerInfos, function(jsapiLayerInfo) {
-    //       var absoluteSublayerId = this.id + '_' + jsapiLayerInfo.id;
-    //       if(esriLang.isDefined(layerOptions[absoluteSublayerId])) {
-    //         haseConfiguredInLayerOptionsflag = true;
-    //         if(layerOptions[absoluteSublayerId].visible) {
-    //           visibleLayersForUpdateSubLayerVisible.push(jsapiLayerInfo.id);
-    //         }
-    //       }
-    //     }, this);
-
-    //     if(haseConfiguredInLayerOptionsflag) {
-    //       // init this._sublayerVisible and call _initVisible for all subLayers.
-    //       this._initSubLayerVisible(visibleLayersForUpdateSubLayerVisible);
-    //       this.traversal(function(layerInfo) {
-    //         layerInfo._initVisible();
-    //       });
-
-    //       // 2, reset sublayers visibility.
-    //       var subLayersVisible = {};
-    //       this.traversal(function(layerInfo) {
-    //         if (layerInfo.getSubLayers().length === 0) {
-    //           subLayersVisible[layerInfo.originOperLayer.mapService.subId] =
-    //             layerInfo._isAllSubLayerVisibleOnPath();
-    //         }
-    //       });
-    //       this._setSubLayerVisible(subLayersVisible);
-    //     }
-    //   }
-    // },
-
-
-    _resetLayerObjectVisiblity: function(layerOptions) {
-
-      var layerOption  = layerOptions ? layerOptions[this.id]: null;
-      var haseConfiguredInLayerOptionsflag = false;
-      if(layerOptions) {
-        //reste visibility for parent layer.
-        if(layerOption) {
-          this.layerObject.setVisibility(layerOption.visible);
-        }
-        //reset visibility of sublayers.
-        if (this.layerObject.declaredClass !== 'esri.layers.ArcGISDynamicMapServiceLayer') {
-          return;
-        }
-
-        var subLayersCheckedInfo = {};
-        for ( var id in layerOptions) {
-          if(layerOptions.hasOwnProperty(id) &&
-             (typeof layerOptions[id] !== 'function')) {
-            haseConfiguredInLayerOptionsflag = true;
-            subLayersCheckedInfo[id] = layerOptions[id].visible;
-          }
-        }
-
-        if(haseConfiguredInLayerOptionsflag) {
-          this._setSubLayerVisibleByCheckedInfo(subLayersCheckedInfo);
-        }
-      }
-    },
-
-
-    _setSubLayerVisibleByCheckedInfo: function(checkedInfo) {
-      // 1, init this._subLayerVisible according to checkedInfo
-      var visibleLayersForUpdateSubLayerVisible = [];
-      array.forEach(this._jsapiLayerInfos, function(jsapiLayerInfo) {
-        var absoluteSublayerId = this.id + '_' + jsapiLayerInfo.id;
-        if(esriLang.isDefined(checkedInfo[absoluteSublayerId])) {
-          if(checkedInfo[absoluteSublayerId]) {
-            visibleLayersForUpdateSubLayerVisible.push(jsapiLayerInfo.id);
-          }
-        } else {
-          // keep old visible of subLayerVisible.
-          if(this._subLayerVisible[jsapiLayerInfo.id]) {
-            visibleLayersForUpdateSubLayerVisible.push(jsapiLayerInfo.id);
-          }
-        }
-      }, this);
-
-      // init this._sublayerVisible and call _initVisible for all subLayers.
-      this._initSubLayerVisible(visibleLayersForUpdateSubLayerVisible);
-      this.traversal(function(layerInfo) {
-        layerInfo._initVisible();
-      });
-
-      // 2, reset sublayers visibility.
-      var subLayersVisible = {};
-      this.traversal(function(layerInfo) {
-        if (layerInfo.getSubLayers().length === 0) {
-          subLayersVisible[layerInfo.originOperLayer.mapService.subId] =
-            layerInfo._isAllSubLayerVisibleOnPath();
-        }
-      });
-      this._setSubLayerVisible(subLayersVisible);
-    },
-
-    // publish event on subLayers visible were changed.
-    _subLayerVisibleChanged: function() {
-      var changedLayerInfos = [];
-      this.traversal(function(layerInfo) {
-        changedLayerInfos.push(layerInfo);
-      });
-      topic.publish('layerInfos/layerInfo/visibleChanged', changedLayerInfos);
-    },
-
-
-    /***************************************************
-     * methods about creating sublayerInfos
-     * **************************************************/
+    //---------------new section-----------------------------------------
     obtainNewSubLayers: function() {
       var newSubLayers = [];
       var layer = this.originOperLayer.layerObject;
@@ -387,7 +305,7 @@ esriRequest, esriLang) {
 
         // It is a group layer.
         if (layerInfo.subLayerIds && layerInfo.subLayerIds.length > 0) {
-          // it's a fake layerObject, only has a url;
+          // it's a fake layerObject, only has a url intent to show Descriptiong in popupMenu
           featureLayer = {
             url: url,
             empty: true
@@ -433,7 +351,7 @@ esriRequest, esriLang) {
         var subLayerInfo;
         if (layerInfo.parentLayerId === -1 /*&& this._idIsInJsapiLayerInfos(layerInfo.id)*/
            /*&& !newSubLayers[layerInfo.id].error*/ ) {
-          subLayerInfo = this._layerInfoFactory.create(newSubLayers[i]);
+          subLayerInfo = LayerInfoFactory.getInstance().create(newSubLayers[i]);
           finalNewSubLayerInfos.push(subLayerInfo);
           subLayerInfo.init();
         }
@@ -458,20 +376,14 @@ esriRequest, esriLang) {
                               featureLayerId,
                               layerInfo,
                               serviceLayerType) {
-      var mapServiceSubId = layerInfo.source && layerInfo.source.mapLayerId;
-      if(mapServiceSubId === undefined || mapServiceSubId === null) {
-        mapServiceSubId = layerInfo.id;
-      }
       newSubLayers.push({
         layerObject: featureLayer,
         title: layerInfo.name || layerInfo.id || " ",
-        id: featureLayerId || "-",
-        subId: layerInfo.id,
+        id: featureLayerId || " ",
         subLayers: [],
         mapService: {
           "layerInfo": this,
-          "subId": layerInfo.id,
-          "mapServiceSubId": mapServiceSubId
+          "subId": layerInfo.id
         },
         selfType: 'mapservice_' + serviceLayerType,
         parentLayerInfo: this
@@ -494,9 +406,20 @@ esriRequest, esriLang) {
       };
     },
 
-    /***************************************************
-     * public methods
-     * **************************************************/
+    getOpacity: function() {
+      if (this.layerObject.opacity) {
+        return this.layerObject.opacity;
+      } else {
+        return 1;
+      }
+    },
+
+    setOpacity: function(opacity) {
+      if (this.layerObject.setOpacity) {
+        this.layerObject.setOpacity(opacity);
+      }
+    },
+
     getLegendInfo: function(portalUrl) {
       var def = new Deferred();
       if (!this._legendInfo) {
@@ -512,9 +435,7 @@ esriRequest, esriLang) {
       return def;
     },
 
-    /***************************************************
-     * methods for control legend
-     ***************************************************/
+    // about legend.
     _legendRequest: function(portalUrl) {
       if (this.layerObject.version >= 10.01) {
         return this._legendRequestServer();
@@ -587,77 +508,8 @@ esriRequest, esriLang) {
       return dynLayerObjs;
     },
 
-    /***************************************************
-     * methods for control service definition
-     ***************************************************/
-    _getServiceDefinition: function() {
-      var url = this.getUrl();
-      var requestProxy = this._serviceDefinitionBuffer.getRequest(this.subId);
-      return requestProxy.request(url);
-    },
-
-    _getSubserviceDefinition: function(mapServiceSubId) {
-      if (this.layerObject.version >= 10.11) {
-        return this._getAllLayerAndTable(mapServiceSubId);
-      } else {
-        return this._getLayerAndTable(mapServiceSubId);
-      }
-    },
-
-    _getAllLayerAndTable: function(mapServiceSubId) {
-      var url = this.layerObject.url + '/layers';
-      var allLayerAndTableRequestProxy = this._serviceDefinitionBuffer.getRequest("_all_layer_and_table_request");
-      if(!allLayerAndTableRequestProxy.isResolved()) {
-        allLayerAndTableRequestProxy.request(url).then(lang.hitch(this, function(result) {
-          /*
-          if(result === null) {
-            this.traversal(lang.hitch(this, function(layerInfo) {
-              if(!layerInfo.isRootLayer()) {
-                var singleRequestProxy = this._serviceDefinitionBuffer.getRequest(layerInfo.mapServiceSubId);
-                singleRequestProxy.setResponse(null);
-              }
-            }));
-          } else {
-            array.forEach(result.layers, function(definition){
-              var singleRequestProxy = this._serviceDefinitionBuffer.getRequest(definition.id);
-              singleRequestProxy.setResponse(definition);
-            }, this);
-          }
-          */
-
-          // consider the situation of result.layers does not contain all sublayers' defination.
-          if(!result) {
-            result = {layers: []};
-          }
-          this.traversal(lang.hitch(this, function(layerInfo) {
-            if(!layerInfo.isRootLayer()) {
-              var mapServiceSubId = layerInfo.originOperLayer.mapService.mapServiceSubId;
-              var singleRequestProxy = this._serviceDefinitionBuffer.getRequest(mapServiceSubId);
-              var response = null;
-              array.some(result.layers, function(definition){
-                if(definition.id === mapServiceSubId) {
-                  response = definition;
-                  return true;
-                }
-              }, this);
-              singleRequestProxy.setResponse(response);
-            }
-          }));
-
-        }));
-      }
-      var singleRequestProxy = this._serviceDefinitionBuffer.getRequest(mapServiceSubId);
-      return singleRequestProxy.fakeRequest();
-    },
-
-    _getLayerAndTable: function(mapServiceSubId) {
-      var url = this.layerObject.url + '/' + mapServiceSubId;
-      var requestProxy = this._serviceDefinitionBuffer.getRequest(mapServiceSubId);
-      return requestProxy.request(url);
-    },
-
-    /*
-    _getSerivceDefinition: function() {
+    // about layer definition
+    _getLayerDefinition: function() {
       var def = new Deferred();
       var url = this.layerObject.url;
       this._request(url).then(lang.hitch(this, function(result) {
@@ -669,7 +521,7 @@ esriRequest, esriLang) {
       return def;
     },
 
-    _getSubserviceDefinition: function(subId) {
+    _getSublayerDefinition: function(subId) {
       var def;
       if (this._sublayerIdent.definitions[subId]) {
         def = new Deferred();
@@ -731,9 +583,7 @@ esriRequest, esriLang) {
       });
       return def;
     },
-   */
 
-    /*
     _request: function(url) {
       var request = esriRequest({
         url: url,
@@ -745,12 +595,7 @@ esriRequest, esriLang) {
       });
       return request;
     },
-    */
 
-
-    /***************************************************
-     * methods about webmap information
-     ***************************************************/
     _getSublayerSettingOfWebmap: function(subId) {
       // summary:
       //   get webmap setting for sublayer of mapservice layer;
@@ -778,9 +623,9 @@ esriRequest, esriLang) {
       }
     },
 
-    /***************************************************
-     * methoeds for control _jsapiLayerInfos
-     ***************************************************/
+    /*************************************
+     * Functions about _jsapiLayerInfos
+     *************************************/
     _idIsInJsapiLayerInfos: function(subId) {
       // var filterdLayerInfos = array.filter(this._jsapiLayerInfos, function(jsapiLayerInfo) {
       //   return jsapiLayerInfo.id === subId;
@@ -795,7 +640,6 @@ esriRequest, esriLang) {
       for(var i = 0; i < this._jsapiLayerInfos.length; i++) {
         if(this._jsapiLayerInfos[i].id === subId) {
           jsapiLayerInfo = this._jsapiLayerInfos[i];
-          break;
         }
       }
       return jsapiLayerInfo;
@@ -816,9 +660,18 @@ esriRequest, esriLang) {
       }
     },
 
-    /***************************************************
-     * mehtods about events
-     ***************************************************/
+    // control subLayers visible.
+    _subLayerVisibleChanged: function() {
+      var changedLayerInfos = [];
+      this.traversal(function(layerInfo) {
+        changedLayerInfos.push(layerInfo);
+      });
+      topic.publish('layerInfos/layerInfo/visibleChanged', changedLayerInfos);
+    },
+
+    /****************
+     * Event
+     ***************/
     _bindEvent: function() {
       var handle;
       this.inherited(arguments);
@@ -890,10 +743,10 @@ esriRequest, esriLang) {
           .concat(convertVisibleLayersResult.visibleLayersForSetVisibleLayers);
 
 
-      // init this._sublayerVisible and call _initVisible for all subLayers.
-      this._initSubLayerVisible(visibleLayersForUpdateSubLayerVisible);
+      // init sublayerVisible and call initVisible for all subLayers.
+      this.initSubLayerVisible(visibleLayersForUpdateSubLayerVisible);
       this.traversal(function(layerInfo) {
-        layerInfo._initVisible();
+        layerInfo.initVisible();
       });
 
       //recall setVisibleLayers()
@@ -924,10 +777,9 @@ esriRequest, esriLang) {
         }
       }, this);
 
-      // remove repetitions and '-1' value.
+      // remove repetitions.
       array.forEach(tempVisibleLayers, function(subLayerIndex) {
-        if(subLayerIndex >= 0 &&
-           result.visibleLayersForUpdateSubLayerVisible.indexOf(subLayerIndex) < 0) {
+        if(result.visibleLayersForUpdateSubLayerVisible.indexOf(subLayerIndex) < 0) {
           result.visibleLayersForUpdateSubLayerVisible.push(subLayerIndex);
         }
       }, this);

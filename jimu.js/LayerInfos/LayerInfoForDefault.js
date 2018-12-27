@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,26 +20,18 @@ define([
   'dojo/_base/lang',
   'dojo/Deferred',
   './LayerInfo',
+  './LayerInfos',
   'dojox/gfx',
   'dojo/dom-construct',
   'dojo/dom-attr',
-  'dojo/dom-class',
   'dojo/aspect',
   'jimu/portalUrlUtils',
-  'jimu/portalUtils',
   'jimu/utils',
   'esri/symbols/jsonUtils',
-  'esri/layers/LabelLayer',
-  'esri/layers/LabelClass',
   'esri/dijit/PopupTemplate',
-  'esri/dijit/Legend',
-  'esri/graphic',
-  'esri/geometry/Point',
-  'esri/tasks/query',
-  'esri/tasks/QueryTask'
-], function(declare, array, lang, Deferred, LayerInfo, gfx, domConstruct,
-domAttr, domClass, aspect, portalUrlUtils, portalUtils, jimuUtils, jsonUtils, LabelLayer,
-LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
+  'esri/dijit/Legend'
+], function(declare, array, lang, Deferred, LayerInfo, LayerInfos, gfx, domConstruct,
+domAttr, aspect, portalUrlUtils, jimuUtils, jsonUtils, PopupTemplate, Legend) {
   var clazz = declare(LayerInfo, {
     _legendsNode: null,
     controlPopupInfo: null,
@@ -63,83 +55,6 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
 
       // init control popup
       this._initControlPopup();
-      // update layerObject.name if it has.
-      this._updateLayerObjectName();
-      // show/hide labels
-      try {
-        this._initToShowLabels();
-      } catch (err) {
-        console.warn(err.message);
-      }
-    },
-
-    _updateLayerObjectName: function() {
-      if(this.layerObject &&
-         !this.layerObject.empty &&
-         this.layerObject.name &&
-         !lang.getObject("_wabProperties.originalLayerName", false, this.layerObject)) {
-        lang.setObject('_wabProperties.originalLayerName',
-                       this.layerObject.name,
-                       this.layerObject);
-        this.layerObject.name = this.title;
-      }
-    },
-
-    _initToShowLabels: function() {
-      var itemLayerInfo = lang.getObject("_wabProperties.itemLayerInfo", false, this.layerObject);
-      /*
-      //test code
-      itemLayerInfo = {
-        portalUrl: "http://www.arcgis.com",
-        itemId: this.layerObject.xtnItemId
-      };
-      */
-
-      //ignores layers of webmap. layer of webmap that does not have layerObject.itemLayerInfo property.
-      if(!itemLayerInfo ||
-         //!LayerInfos.getInstanceSync() ||
-         this.layerObject.empty) {
-        return;
-      }
-
-      var portal = portalUtils.getPortal(itemLayerInfo.portalUrl);
-      portal.getItemData(itemLayerInfo.itemId).then(lang.hitch(this, function(itemData) {
-        var currentLayerDataOfItemData;
-        if(itemData && itemData.layers) {
-          array.some(itemData.layers, function(layerData) {
-            if(layerData.id === this.layerObject.layerId) {
-              currentLayerDataOfItemData = layerData;
-              return true;
-            } else {
-              return false;
-            }
-          }, this);
-
-          if(currentLayerDataOfItemData && currentLayerDataOfItemData.showLabels) {
-            // temporary solvtion for if itemLayer data was not merged to layerObject.
-            var labelingInfoOfItemData = lang.getObject("layerDefinition.drawingInfo.labelingInfo",
-                                                        false,
-                                                        currentLayerDataOfItemData);
-            if(labelingInfoOfItemData &&
-               !this.layerObject.labelingInfo &&
-               this.layerObject.setLabelingInfo) {
-              var labelClasses = array.map(labelingInfoOfItemData, function(labelingInfoJson) {
-                var labelClass = new LabelClass(labelingInfoJson);
-                return labelClass;
-              }, this);
-              this.layerObject.setLabelingInfo(labelClasses);
-            }
-
-            // init to showLabels
-            this.showLabels();
-          }
-        }
-
-      }), lang.hitch(this, function(error) {
-        if(error && error.message) {
-          console.log(error.message);
-        }
-      }));
     },
 
     _initOldFilter: function() {
@@ -155,8 +70,6 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
 
     _getLayerOptionsForCreateLayerObject: function() {
       var options = {};
-      // assign id
-      options.id = this.id;
       // prepare outFileds for create feature layer.
       var outFields = [];
       var infoTemplate = this.getInfoTemplate();
@@ -170,94 +83,21 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
         outFields = ["*"];
       }
       options.outFields = outFields;
-
-      // assign capabilities
-      //options.resourceInfo = {capabilities: ["Query"]};
-
-      /*
-      // prepare popupInfo of webmap for talbe (just for table).
-      if(this.originOperLayer.popupInfo && this.isTable) {
-        var popupTemplate = new PopupTemplate(this.originOperLayer.popupInfo);
-        if(popupTemplate ) {
-          options.infoTemplate = popupTemplate;
-        }
-      }
-      */
       return options;
     },
 
-
-    _getExtent: function() {
-      var def = new Deferred();
-      //var extent = null;
-      var defaultExtent;
-      if(this.layerObject.graphics && this.layerObject.graphics.length > 0) {
-        defaultExtent = jimuUtils.graphicsExtent(this.layerObject.graphics);
+    getExtent: function() {
+      var extent = this.originOperLayer.layerObject.fullExtent ||
+        this.originOperLayer.layerObject.initialExtent;
+      if(extent) {
+        return this._convertGeometryToMapSpatialRef(extent);
       } else {
-        defaultExtent = this.layerObject.fullExtent || this.layerObject.initialExtent;
+        var def = new Deferred();
+        def.resolve(null);
+        return def;
       }
-      if(!this.layerObject.url) {
-        // feature collection
-        def.resolve(defaultExtent);
-      } else if(this.layerObject.declaredClass === "esri.layers.FeatureLayer") {
-        // feature layer
-        /*
-        var query = new esri.tasks.Query();
-        var filter = this.getFilter();
-        query.where = filter ? filter : "1=1";
-        if(layer.fullExtent && layer.fullExtent.spatialReference) {
-          // the outSpatialReference set by the query object is ignored and the map's spatial reference is used.
-          query.outSpatialReference = layer.fullExtent.spatialReference;
-        }
-        // queryExtent is valid only for hosted feature services and ArcGIS Server 10.3.1 and later.
-        this.layerObject.queryExtent();
-        */
-
-        this.getServiceDefinition().then(lang.hitch(this, function(sd) {
-          var queryTask = new QueryTask(this.layerObject.url);
-          var query = new Query();
-          var filter = this.getFilter();
-          query.where = filter ? filter : "1=1";
-          query.outSpatialReference = this.map.spatialReference;
-          query.returnGeometry = true;
-          if(sd && sd.advancedQueryCapabilities && sd.advancedQueryCapabilities.supportsReturningQueryExtent) {
-            queryTask.executeForExtent(query, lang.hitch(this, function(result) {
-              var extent = result.extent;
-              if(result.count === 1 && this.layerObject.geometryType === "esriGeometryPoint") {
-                /*
-                result.extent.xmin = result.extent.xmin - 0.0001;
-                result.extent.ymin = result.extent.ymin - 0.0001;
-                result.extent.xmax = result.extent.xmax + 0.0001;
-                result.extent.ymax = result.extent.ymax + 0.0001;
-                */
-                var point = new Point(result.extent.xmin, result.extent.ymin, result.extent.spatialReference);
-                if(point) {
-                  extent = jimuUtils.graphicsExtent([new Graphic(point)]);
-                }
-              }
-              def.resolve(extent);
-            }), lang.hitch(this, function() {
-              // using the default extent
-              def.resolve(defaultExtent);
-              console.log("executeForExtent failed.");
-            }));
-          } else {
-            queryTask.execute(query).then(lang.hitch(this, function(featureSet) {
-              var extent = jimuUtils.graphicsExtent(featureSet.features);
-              def.resolve(extent);
-            }), lang.hitch(this, function() {
-              // using the default extent
-              def.resolve(defaultExtent);
-              console.log("query execute failed.");
-            }));
-          }
-        }));
-      } else {
-        // using the default extent
-        def.resolve(defaultExtent);
-      }
-      return def;
     },
+
 
     _resetLayerObjectVisiblity: function(layerOptions) {
       var layerOption  = layerOptions ? layerOptions[this.id]: null;
@@ -269,11 +109,7 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
       }
     },
 
-
-    /***************************************************
-     * methods for control visiblility
-     * **************************************************/
-    _initVisible: function() {
+    initVisible: function() {
       /*jshint unused: false*/
       var visible = false;
       if(this.originOperLayer.collection && this._notFirstInitVisilbeFlag) {
@@ -305,6 +141,23 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
         this._visible = visible;
       }
       this._notFirstInitVisilbeFlag = true;
+    },
+
+    _initControlPopup: function() {
+      this.controlPopupInfo = {
+        //enablePopup: this.originOperLayer.disablePopup ? false : true,
+        enablePopup: this.layerObject.infoTemplate ? true: false,
+        infoTemplate: this.layerObject.infoTemplate
+      };
+      // backup infoTemplate to layer.
+      this.layerObject._infoTemplate = this.layerObject.infoTemplate;
+      aspect.after(this.layerObject, "setInfoTemplate", lang.hitch(this, function(){
+        this.layerObject._infoTemplate = this.layerObject.infoTemplate;
+        this.controlPopupInfo.infoTemplate = this.layerObject.infoTemplate;
+        if(!this.controlPopupInfo.enablePopup) {
+          this.layerObject.infoTemplate = null;
+        }
+      }));
     },
 
     _setTopLayerVisible: function(visible) {
@@ -349,64 +202,6 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
       }
     },
 
-    _prepareCheckedInfoForShowOrHide: function(showOrHide) {
-      var checkedInfo = {};
-      var currentLayerInfo = this;
-      while(currentLayerInfo.parentLayerInfo) {
-        checkedInfo[currentLayerInfo.id] = showOrHide;
-        currentLayerInfo = currentLayerInfo.parentLayerInfo;
-      }
-      return checkedInfo;
-    },
-
-    show: function() {
-      if(this.isRootLayer()) {
-        this._setTopLayerVisible(true);
-      } else {
-        var rootLayerInfo = this.getRootLayerInfo();
-        if(rootLayerInfo._setSubLayerVisibleByCheckedInfo) {
-          var checkedInfo = this._prepareCheckedInfoForShowOrHide(true);
-          rootLayerInfo._setSubLayerVisibleByCheckedInfo(checkedInfo);
-          rootLayerInfo.show();
-        }
-      }
-    },
-
-    _initControlPopup: function() {
-      this.controlPopupInfo = {
-        //enablePopup: this.originOperLayer.disablePopup ? false : true,
-        enablePopup: this.layerObject.infoTemplate ? true: false,
-        infoTemplate: this.layerObject.infoTemplate
-      };
-      // backup infoTemplate to layer.
-      this.layerObject._infoTemplate = this.layerObject.infoTemplate;
-      var handle = aspect.after(this.layerObject, "setInfoTemplate", lang.hitch(this, function(){
-        this.layerObject._infoTemplate = this.layerObject.infoTemplate;
-        this.controlPopupInfo.infoTemplate = this.layerObject.infoTemplate;
-        if(!this.controlPopupInfo.enablePopup) {
-          this.layerObject.infoTemplate = null;
-        }
-      }));
-      this._eventHandles.push(handle);
-    },
-
-    /***************************************************
-     * methods for control service definition
-     ***************************************************/
-
-    _getServiceDefinition: function() {
-      var def;
-      var url = this.getUrl();
-      if(url && this.isRootLayer() && this.layerObject.declaredClass === "esri.layers.FeatureLayer") {
-        var requestProxy = this._serviceDefinitionBuffer.getRequest(this.subId);
-        def = requestProxy.request(url);
-      } else {
-        def = new Deferred();
-        def.resolve(null);
-      }
-      return def;
-    },
-
     //---------------new section-----------------------------------------
 
     // obtainLegendsNode: function() {
@@ -429,7 +224,7 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
       var legendsNode = domConstruct.create("div", {
         // placeAt 'legendsNode' to document.body first, else can not
         // show legend on IE8.
-        "class": "legends-div jimu-legends-div-flag jimu-leading-margin1",
+        "class": "legends-div jimu-leading-margin1",
         "legendsDivId": this.id
       }, document.body);
       domConstruct.create("img", {
@@ -455,8 +250,6 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
       this.layerObject.loaded) {
         // delete loading image
         domConstruct.empty(legendsNode);
-        // remove 'jimu-legends-div-flag'
-        domClass.remove(legendsNode, 'jimu-legends-div-flag');
         var layerInfos = [{
           layer: this.layerObject
         }];
@@ -527,45 +320,43 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
       }
     },
 
-
-    // operLayer = {
-    //    layerObject: layer,
-    //    title: layer.label || layer.title || layer.name || layer.id || " ",
-    //    id: layerId || " ",
-    //    subLayers: [operLayer, ... ],
-    //    mapService: {layerInfo: , subId: },
-    //    collection: {layerInfo: }
-    //    selfType: dynamic | tiled | group
-    // };
-
     obtainNewSubLayers: function() {
       var newSubLayers = [];
-      array.forEach(this.originOperLayer.subLayers, function(subOperLayer){
-        var subLayerInfo;
-        // create sub layer
-        subOperLayer.parentLayerInfo = this;
-        subLayerInfo = this._layerInfoFactory.create(subOperLayer);
-        newSubLayers.push(subLayerInfo);
-        subLayerInfo.init();
-      }, this);
+      /*
+      if(!this.originOperLayer.subLayers || this.originOperLayer.subLayers.length === 0) {
+        //***
+      } else {
+      */
+      if(this.originOperLayer.subLayers && this.originOperLayer.subLayers.length !== 0) {
+        array.forEach(this.originOperLayer.subLayers, function(subOperLayer){
+          var subLayerInfo = new clazz(subOperLayer, this.map);
+          newSubLayers.push(subLayerInfo);
+
+          subLayerInfo.init();
+        }, this);
+      }
       return newSubLayers;
     },
 
-    _isAllSubLayerVisibleOnPath: function() {
-      var isVisbleOrInvisilbe = true;
-      var currentLayerInfo = this;
-      while(!currentLayerInfo.isRootLayer()) {
-        isVisbleOrInvisilbe = isVisbleOrInvisilbe && currentLayerInfo.isVisible();
-        currentLayerInfo = currentLayerInfo.parentLayerInfo;
+    getOpacity: function() {
+      if (this.layerObject.opacity) {
+        return this.layerObject.opacity;
+      } else {
+        return 1;
       }
-      return isVisbleOrInvisilbe;
     },
 
-    _getCustomPopupInfo: function(object, fieldNames) {
-      // return popupInfo with all fieldInfos if the fieldName is null;
-      var popupInfo = null;
+    setOpacity: function(opacity) {
+      if (this.layerObject.setOpacity) {
+        this.layerObject.setOpacity(opacity);
+      }
+    },
+
+    // control popup
+    _getDefaultPopupTemplate: function(object) {
+      var popupTemplate = null;
       if(object && object.fields) {
-        popupInfo = {
+        var popupInfo = {
           title: object.name,
           fieldInfos:[],
           description: null,
@@ -573,73 +364,24 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
           mediaInfos: []
         };
         array.forEach(object.fields, function(field){
-          var isValidField = false;
-          if(fieldNames) {
-            var isValidFieldName = array.some(fieldNames, lang.hitch(this, function(fieldName) {
-              return fieldName && (field.name.toLowerCase() === fieldName.toLowerCase());
-            }));
-            if(isValidFieldName) {
-              isValidField = true;
-            }
-          } else {
-            isValidField = true;
-          }
-          if(isValidField) {
+          if(field.name !== object.objectIdField &&
+             field.name.toLowerCase() !== "globalid" &&
+             field.name.toLowerCase() !== "shape"){
             var fieldInfo = jimuUtils.getDefaultPortalFieldInfo(field);
             fieldInfo.visible = true;
             fieldInfo.isEditable = field.editable;
             popupInfo.fieldInfos.push(fieldInfo);
           }
-        }, this);
-      }
-      return popupInfo;
-    },
-
-    // get default popupInfo
-    // Todo... improve the getPopupInfo interface.
-    _getDefaultPopupInfo: function(object) {
-      var defaultPopupInfo = this._getCustomPopupInfo(object);
-      if(defaultPopupInfo) {
-        defaultPopupInfo.fieldInfos = array.filter(defaultPopupInfo.fieldInfos, lang.hitch(this, function(fieldInfo) {
-          var result;
-
-          var fieldName = fieldInfo.fieldName.toLowerCase();
-          if(fieldName.indexOf("object") < 0 &&
-             fieldName.indexOf("globalid") < 0 &&
-             fieldName.indexOf("shape") < 0 &&
-             fieldName.indexOf("perimeter") < 0) {
-            result = true;
-          } else {
-            result = false;
-          }
-          return result;
-        }));
-      }
-      return defaultPopupInfo;
-    },
-
-    // control popup
-    // this method depend on layerObject or webmap's popupInfo, otherwise will return null;
-    _getDefaultPopupTemplate: function(object) {
-      var popupTemplate = null;
-      // Todo... improve the getPopupInfo interface.
-      var popupInfo = this.getPopupInfo() || this._getDefaultPopupInfo(object);
-      if(popupInfo) {
+        });
         popupTemplate = new PopupTemplate(popupInfo);
       }
       return popupTemplate;
     },
 
+    // need improve, todo ...
     enablePopup: function() {
-      return this.loadInfoTemplate().then(lang.hitch(this, function() {
-        if(this.controlPopupInfo.infoTemplate) {
-          this.controlPopupInfo.enablePopup = true;
-          this.layerObject.infoTemplate = this.controlPopupInfo.infoTemplate;
-          return true;
-        } else {
-          return false;
-        }
-      }));
+      this.controlPopupInfo.enablePopup = true;
+      this.layerObject.infoTemplate = this.controlPopupInfo.infoTemplate;
     },
 
     disablePopup: function() {
@@ -647,18 +389,6 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
       this.layerObject.infoTemplate = null;
     },
 
-    isPopupEnabled: function() {
-      var isPopupEnabled;
-      if(this.controlPopupInfo &&
-         this.controlPopupInfo.enablePopup) {
-        isPopupEnabled = true;
-      } else {
-        isPopupEnabled = false;
-      }
-      return isPopupEnabled;
-    },
-
-    /*
     loadInfoTemplate: function() {
       var def = new Deferred();
       if(!this.controlPopupInfo.infoTemplate) {
@@ -667,29 +397,12 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
       def.resolve(this.controlPopupInfo.infoTemplate);
       return def;
     },
-    */
-
-    // getLayerObject first because of some layerObjects has not been loaded, such as tabel.
-    loadInfoTemplate: function() {
-      var def = new Deferred();
-      if(this.controlPopupInfo.infoTemplate) {
-        def.resolve(this.controlPopupInfo.infoTemplate);
-      } else {
-        this.getLayerObject().then(lang.hitch(this, function() {
-          this.controlPopupInfo.infoTemplate = this._getDefaultPopupTemplate(this.layerObject);
-          def.resolve(this.controlPopupInfo.infoTemplate);
-        }), lang.hitch(this, function() {
-          def.resolve(null);
-        }));
-      }
-      return def;
-    },
 
     getInfoTemplate: function() {
       return this.controlPopupInfo.infoTemplate;
     },
 
-    _getRelatedUrls: function(layerObject, relationshipRole) {
+    _getRelatedUrls: function(layerObject) {
       var relatedUrls = [];
       if(!layerObject || !layerObject.url || !layerObject.relationships) {
         return relatedUrls;
@@ -698,33 +411,22 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
       var index = layerObject.url.lastIndexOf('/');
       var serverUrl = layerObject.url.slice(0, index);
       array.forEach(layerObject.relationships, function(relationship) {
-        if (!relationshipRole ||
-        !relationship.role ||
-        relationship.cardinality === "esriRelCardinalityManyToMany" ||
-        relationshipRole === relationship.role) {
-          var subUrl = serverUrl + '/' + relationship.relatedTableId.toString();
-          relatedUrls.push(subUrl);
-        }
+        var subUrl = serverUrl + '/' + relationship.relatedTableId.toString();
+        relatedUrls.push(subUrl);
       }, this);
 
       return relatedUrls;
     },
 
-    // summary:
-    //   get related tableInfo array
-    // parameters:
-    //   relationshipRole: optional
-    //       "esriRelRoleOrigin"
-    //       "esriRelRoleDestination"
-    getRelatedTableInfoArray: function(relationshipRole) {
+    getRelatedTableInfoArray: function() {
       var relatedTableInfoArray = [];
       var def = new Deferred();
       this.getLayerObject().then(lang.hitch(this, function(layerObject) {
-        var relatedUrls = this._getRelatedUrls(layerObject, relationshipRole);
+        var relatedUrls = this._getRelatedUrls(layerObject);
         if(relatedUrls.length === 0) {
           def.resolve(relatedTableInfoArray);
         } else {
-          this._getLayerInfosObj().traversalAll(lang.hitch(this, function(layerInfo) {
+          LayerInfos.getInstanceSync().traversalAll(lang.hitch(this, function(layerInfo) {
             var relatedUrlIndex = -1;
             if(relatedUrls.length === 0) {
               // all were found
@@ -732,9 +434,9 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
             } else {
               array.forEach(relatedUrls, function(relatedUrl, index) {
                 if(lang.getObject("layerObject.url", false, layerInfo) &&
-                   (portalUrlUtils.removeProtocol(relatedUrl.toString().toLowerCase()).replace(/\/+/g, '/') ===
+                   (portalUrlUtils.removeProtocol(relatedUrl.toString().toLowerCase()) ===
                    portalUrlUtils.removeProtocol(
-                                 layerInfo.layerObject.url.toString().toLowerCase()).replace(/\/+/g, '/'))
+                                 layerInfo.layerObject.url.toString().toLowerCase()))
                 ) {
                   relatedTableInfoArray.push(layerInfo);
                   relatedUrlIndex = index;
@@ -758,7 +460,7 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
       // summary:
       //   get filter from layerObject.
       // description:
-      //   return null if it does not have or cannot get it.
+      //   return null if does not have or cannot get it.
       var filter;
       if(this.layerObject &&
          !this.layerObject.empty &&
@@ -777,145 +479,11 @@ LabelClass, PopupTemplate, Legend, Graphic, Point, Query, QueryTask) {
       //   layerDefinitionExpression: layer definition expression
       //   set 'null' to delete layer definition express
       // description:
-      //   operation will skip layer if it does not support filter.
+      //   operation will skip if layer not support filter.
       if(this.layerObject &&
          !this.layerObject.empty &&
          this.layerObject.setDefinitionExpression) {
         this.layerObject.setDefinitionExpression(layerDefinitionExpression);
-      }
-    },
-
-    // control labels
-
-    _isAlreadyInLabelLayerOfMap: function(labelLayerOfMap) {
-      var isAlreadyInLabelLayerOfMap = false;
-      if(labelLayerOfMap) {
-        isAlreadyInLabelLayerOfMap = array.some(labelLayerOfMap.getFeatureLayers(), function(fl) {
-          return this.id === fl.id;
-        }, this);
-      }
-      return isAlreadyInLabelLayerOfMap;
-    },
-
-    _addToLabelLayerOfMap: function() {
-      var labelLayerOfMap = this.getLabelLayerOfMap();
-      if(labelLayerOfMap && !this._isAlreadyInLabelLayerOfMap(labelLayerOfMap)) {
-        labelLayerOfMap.addFeatureLayer(this.layerObject);
-        // workaround for cannot control labels for layers are added continuously.
-        this.map.removeLayer(labelLayerOfMap);
-        this.map.addLayer(labelLayerOfMap);
-      }
-    },
-
-    _removeFromLabelLayerOfMap: function() {
-      // remove featureLayer from labelLayerOfMap
-      var labelLayerOfMap = this.getLabelLayerOfMap();
-      labelLayerOfMap.removeFeatureLayer(this.id);
-    },
-
-    _isSupportLabelControl: function() {
-      var isSupportLabelControl;
-      // TODO... supports WFS layer.
-      if(this.isRootLayer() &&
-         !this.layerObject.empty &&
-         this.layerObject.declaredClass === "esri.layers.FeatureLayer" &&
-         this.layerObject.labelingInfo &&
-         this.layerObject.labelingInfo.length > 0){
-        isSupportLabelControl = true;
-      } else {
-        isSupportLabelControl = false;
-      }
-      return isSupportLabelControl;
-    },
-
-    getLabelLayerOfMap: function() {
-      var labelLayer;
-      if(this.map._labels) {
-        labelLayer = this.map._labels;
-      } else {
-        var labelLayerId = 'labels';
-        labelLayer = this.map.getLayer(labelLayerId);
-        if(!labelLayer) {
-          labelLayer = new LabelLayer({"id": labelLayerId});
-          this.map.addLayer(labelLayer);
-        }
-      }
-      return labelLayer;
-    },
-
-    obtainLabelControl: function() {
-      var lableLayerId = this.id + '_labelLayer';
-      var labelLayer = this.map.getLayer(lableLayerId);
-
-      // TODO... supports WFS layer.
-      if(!labelLayer && this._isSupportLabelControl()){
-        var labelLayerOfMap = this.getLabelLayerOfMap();
-        if(labelLayerOfMap && this._isAlreadyInLabelLayerOfMap(labelLayerOfMap)) {
-          // create a new labelLayer
-          labelLayer = new LabelLayer({"id": lableLayerId});
-          labelLayer.addFeatureLayer(this.layerObject);
-          this.map.addLayer(labelLayer);
-          // remove featureLayer from labelLayerOfMap
-          this._removeFromLabelLayerOfMap();
-        }
-      }
-      return labelLayer ? labelLayer : null;
-    },
-
-    restoreLabelControl: function() {
-      if(this._isSupportLabelControl()) {
-        // remove labelLayer from map
-        this.destroyRealtedLabelLayer();
-        // add featureLayer to labelLayerOfMap
-        this._addToLabelLayerOfMap();
-      }
-    },
-
-    destroyRealtedLabelLayer: function() {
-      var lableLayerId = this.id + '_labelLayer';
-      var labelLayer = this.map.getLayer(lableLayerId);
-      if(labelLayer) {
-        this.map.removeLayer(labelLayer);
-      }
-    },
-
-    destroyLabelLayer: function() {
-      var currentLayerIsAlreadyInMap = this.map.getLayer(this.id);
-      if(!currentLayerIsAlreadyInMap) {
-        this._removeFromLabelLayerOfMap();
-        this.destroyRealtedLabelLayer();
-      }
-    },
-
-    canShowLabel: function() {
-      return this._isSupportLabelControl();
-    },
-
-    isShowLabels: function() {
-
-      var lableLayerId = this.id + '_labelLayer';
-      var labelLayer = this.map.getLayer(lableLayerId);
-      var labelLayerOfMap = this.getLabelLayerOfMap();
-      var precondition = this._isSupportLabelControl() &&
-                         (labelLayer || (labelLayerOfMap && this._isAlreadyInLabelLayerOfMap(labelLayerOfMap)));
-
-      return precondition ? this.layerObject.showLabels : false;
-    },
-
-    showLabels: function() {
-      if(this._isSupportLabelControl() && this.layerObject.setShowLabels) {
-        var lableLayerId = this.id + '_labelLayer';
-        var labelLayer = this.map.getLayer(lableLayerId);
-        if(!labelLayer) {
-          this._addToLabelLayerOfMap();
-        }
-        this.layerObject.setShowLabels(true);
-      }
-    },
-
-    hideLabels: function() {
-      if(this._isSupportLabelControl() && this.layerObject.setShowLabels) {
-        this.layerObject.setShowLabels(false);
       }
     }
 

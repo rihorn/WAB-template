@@ -5,14 +5,14 @@ define([
     'dojo/_base/lang',
     'dojo/Deferred',
     "jimu/dijit/Message",
-    'jimu/dijit/LoadingIndicator',
+    'jimu/dijit/LoadingShelter',
     './Print',
     "esri/request",
     'jimu/portalUrlUtils'
   ],
   function(
     declare, BaseWidget, portalUtils, lang, Deferred,
-    Message, LoadingIndicator, Print, esriRequest,
+    Message, LoadingShelter, Print, esriRequest,
     portalUrlUtils
   ) {
     return declare([BaseWidget], {
@@ -24,7 +24,7 @@ define([
       postCreate: function() {
         this.inherited(arguments);
 
-        this.shelter = new LoadingIndicator({
+        this.shelter = new LoadingShelter({
           hidden: true
         });
         this.shelter.placeAt(this.domNode);
@@ -49,11 +49,9 @@ define([
                 printTaskURL: printServiceUrl,
                 defaultAuthor: this.config.defaultAuthor,
                 defaultCopyright: this.config.defaultCopyright,
-                copyrightEditable: this.config.copyrightEditable !== false,
                 defaultTitle: this.config.defaultTitle,
                 defaultFormat: this.config.defaultFormat,
                 defaultLayout: this.config.defaultLayout,
-                // showAdvancedOption: this.config.showAdvancedOption !== false,
                 nls: this.nls,
                 async: async
               });

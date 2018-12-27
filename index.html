@@ -3,9 +3,9 @@
 	<head>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
-		<title>ArcGIS Web Application</title>
-		<link rel="shortcut icon" href="images/shortcut.ico">
+		<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+		<title>Kentucky's Hunting and Fishing Sites</title>
+		<LINK REL="SHORTCUT ICON" HREF="http://kygeonet.ky.gov/kygeonet.ico">
 		<!--[if IE 8]>
     <link rel="stylesheet" type="text/css"  href="jimu.js/css/jimu-ie.css" />
     <![endif]-->
@@ -73,6 +73,16 @@
         height: 100%;
         position: absolute;
       }
+	  
+	  #main-loading .app-title{
+          font-family: 'Open Sans', Helvetica, Arial;
+            font-size: 24px;
+            font-weight: 500;
+            position: absolute;
+			background-color: #518dca;
+            color: white;
+            z-index: 2;
+        }
 		</style>
     <link rel="stylesheet" type="text/css" href="configs/loading/loading.css" />
 		<script>
@@ -95,11 +105,17 @@
 	</head>
 	<body class="claro jimu-main-font">
 
-		<div id="main-loading">
+		<div id="main-loading" style="background-color: #518dca;">
 
 			<!-- This is section you can modify to customize the loading page -->
-			<div id="app-loading"></div>
-      <div id="loading-gif"></div>
+			<div id="app-loading" class="app-title">Kentucky's Hunting and Fishing Sites
+				<div class="app-name">
+					<span style="color:white;"></span>
+				</div>
+				<div class="loading-info" style="margin-top:15px;"><img src="images/loading.gif"><br>
+					<div id="main-loading-bar" class="loading"></div>
+				</div>
+			</div>
 
 			<!-- //////////////////    END    ////////////////////////////// -->
 			<div id="ie-note" style="display:none;">

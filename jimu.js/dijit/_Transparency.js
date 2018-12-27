@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,9 +14,7 @@
 // limitations under the License.
 ///////////////////////////////////////////////////////////////////////////
 
-define([
-    'dojo/_base/declare',
-    'dojo/_base/config',
+define(['dojo/_base/declare',
     'dijit/_WidgetBase',
     'dijit/_TemplatedMixin',
     'dijit/_WidgetsInTemplateMixin',
@@ -29,7 +27,7 @@ define([
     'dijit/form/HorizontalRuleLabels',
     'dijit/form/HorizontalRule'
   ],
-  function(declare, dojoConfig, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
+  function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
     Evented, template, lang, html, on, HorizontalSlider, HorizontalRuleLabels,
     HorizontalRule) {/* jshint unused: false */
     return declare([_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, Evented], {
@@ -37,9 +35,6 @@ define([
       declaredClass: 'jimu.dijit.Transparency',
       templateString: template,
       nls: null,
-      _nls0: '0%',
-      _nls50: '50%',
-      _nls100: '100%',
 
       //options:
       alpha: 1.0,
@@ -53,17 +48,6 @@ define([
 
       postMixInProperties: function() {
         this.nls = window.jimuNls.transparency;
-        var locale = dojoConfig.locale || "";
-        locale = locale.toLowerCase();
-        if(locale === 'ar'){
-          this._nls0 = '٪0';
-          this._nls50 = '٪50';
-          this._nls100 = '٪100';
-        }else if(locale === 'tr'){
-          this._nls0 = '%0';
-          this._nls50 = '%50';
-          this._nls100 = '%100';
-        }
       },
 
       postCreate: function(){

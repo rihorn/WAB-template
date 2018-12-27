@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,7 @@
 ///////////////////////////////////////////////////////////////////////////
 
 define(['./ZoomTo', './PanTo', './Flash', './ShowPopup', './ExportToCSV',
-  './ExportToFeatureCollection', './ExportToGeoJSON', './ShowStatistics', './CreateLayer',
-  './AddMarker', './RemoveMarker', './SaveToMyContent'], function(){
+  './ExportToFeatureCollection', './ExportToGeoJSON', './ShowStatistics', './CreateLayer'], function(){
   return [{
     name: 'ZoomTo',
     uri: 'jimu/featureActions/ZoomTo'
@@ -44,14 +43,5 @@ define(['./ZoomTo', './PanTo', './Flash', './ShowPopup', './ExportToCSV',
   }, {
     name: "CreateLayer",
     uri: 'jimu/featureActions/CreateLayer'
-  }, {
-    name: "AddMarker",
-    uri: 'jimu/featureActions/AddMarker'
-  }, {
-    name: "RemoveMarker",
-    uri: 'jimu/featureActions/RemoveMarker'
-  }, {
-    name: "SaveToMyContent",
-    uri: 'jimu/featureActions/SaveToMyContent'
   }];
 });

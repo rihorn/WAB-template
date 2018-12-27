@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ define(['dojo/_base/declare',
   'dojo/_base/lang',
   'dojo/_base/html',
   'dojo/_base/array',
-  'dojo/Evented',
   'esri/request',
   'dijit/MenuItem',
   'jimu/dijit/SimpleTable',
@@ -32,8 +31,8 @@ define(['dojo/_base/declare',
   'dijit/Menu'
 ],
 function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
-  template, lang, html, array, Evented, esriRequest, MenuItem, SimpleTable) {
-  return declare([_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, Evented], {
+  template, lang, html, array, esriRequest, MenuItem, SimpleTable) {
+  return declare([_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin], {
     _def:null,
     declaredClass: 'jimu.dijit.PopupConfig',
     baseClass:'jimu-dijit-popup-config',
@@ -118,8 +117,7 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
       var fields = [{
           name: "visibility",
           title: this.nls.visibility,
-          type: "checkbox",
-          onChange: lang.hitch(this, this._onFieldVisibleChange)
+          type: "checkbox"
         }, {
           name: "name",
           title: this.nls.name,
@@ -140,22 +138,6 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
         fields: fields
       });
       this.fieldsTable.placeAt(this.fieldsTableTd);
-    },
-
-    /**
-     * If all fields in the fieldsTable are invisible, make the Enable popup checkbox unchecked.
-     */
-    _onFieldVisibleChange: function() {
-      var rows = this.fieldsTable.getRows();
-      var flag = array.every(rows, function(row) {
-        var rowData = this.fieldsTable.getRowData(row);
-        return rowData.visibility === false;
-      }, this);
-      if(flag) {
-        this.emit('noVisibleField');
-      } else {
-        this.emit('hasVisibleField');
-      }
     },
 
     _resetMenu:function(){

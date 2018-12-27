@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,15 +24,86 @@ define([
   'dojo/_base/html',
   'dojo/on',
   'dojo/Evented',
-  'jimu/dijit/RadioBtn',
-  'jimu/dijit/_FeaturelayerChooserWithButtons',
+  'jimu/dijit/FeaturelayerChooserFromMap',
   'jimu/dijit/FeaturelayerChooserFromPortal',
   'jimu/dijit/_FeaturelayerServiceChooserContent',
   'jimu/portalUrlUtils'
 ],
-function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, template, lang, html, on, Evented,
-  RadioBtn, FeaturelayerChooserWithButtons, FeaturelayerChooserFromPortal, _FeaturelayerServiceChooserContent,
-  portalUrlUtils) {
+function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
+  template, lang, html, on, Evented, FeaturelayerChooserFromMap,
+  FeaturelayerChooserFromPortal, _FeaturelayerServiceChooserContent, portalUrlUtils) {
+  //define private dijit FeaturelayerChooserWithButtons
+  var baseClassArr = [_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, Evented];
+  var FeaturelayerChooserWithButtons = declare(baseClassArr, {
+    baseClass: 'jimu-layer-chooser-with-buttons jimu-featurelayer-chooser-with-buttons',
+    declaredClass: 'jimu.dijit.FeaturelayerChooserWithButtons',
+    templateString: '<div>' +
+      '<div class="chooser-container" data-dojo-attach-point="flcDiv"></div>' +
+      '<div class="footer">' +
+        '<div class="jimu-btn jimu-float-trailing cancel" data-dojo-attach-point="btnCancel">' +
+          '${nls.cancel}' +
+        '</div>' +
+        '<div class="jimu-btn jimu-float-trailing ok jimu-trailing-margin1 jimu-state-disabled"' +
+        ' data-dojo-attach-point="btnOk">' +
+          '${nls.ok}' +
+        '</div>' +
+      '</div>' +
+    '</div>',
+
+    featureLayerChooserArgs: null,
+
+    //events:
+    //ok
+    //cancel
+
+    //public methods:
+    //getSelectedItems
+
+    postMixInProperties: function(){
+      this.nls = lang.clone(window.jimuNls.common);
+    },
+
+    postCreate: function(){
+      this.inherited(arguments);
+
+      this.flcMap = new FeaturelayerChooserFromMap(this.featureLayerChooserArgs);
+      this.flcMap.placeAt(this.flcDiv);
+      html.setStyle(this.flcMap.domNode, {
+        width: '100%',
+        height: '100%'
+      });
+
+      this.own(on(this.flcMap, 'tree-click', lang.hitch(this, function(){
+        var items = this.getSelectedItems();
+        if(items.length > 0){
+          html.removeClass(this.btnOk, 'jimu-state-disabled');
+        }
+        else{
+          html.addClass(this.btnOk, 'jimu-state-disabled');
+        }
+      })));
+
+      this.own(on(this.btnOk, 'click', lang.hitch(this, function(){
+        var items = this.getSelectedItems();
+        if(items.length > 0){
+          this.emit('ok', items);
+        }
+      })));
+
+      this.own(on(this.btnCancel, 'click', lang.hitch(this, function(){
+        this.emit('cancel');
+      })));
+    },
+
+    getSelectedItems: function(){
+      return this.flcMap.getSelectedItems();
+    },
+
+    startup: function(){
+      this.inherited(arguments);
+      this.flcMap.startup();
+    }
+  });
 
   return declare([_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, Evented], {
     templateString: template,
@@ -119,9 +190,10 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, templat
           width: '100%',
           height: '100%'
         },
-        multiple: this.multiple,
-        createMapResponse: this.createMapResponse,
-        onlyShowWebMapLayers: true
+        featureLayerChooserArgs:{
+          multiple: this.multiple,
+          createMapResponse: this.createMapResponse
+        }
       };
       this.flcMap = new FeaturelayerChooserWithButtons(args1);
       this.flcMap.operationTip = this.nls.selectLayer;
@@ -204,41 +276,18 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, templat
     },
 
     _initRadios: function(){
-      var group = "featureLayerSourceRadios_" + this._getRandomString();
-      var radioChangeHandler = lang.hitch(this, this._onRadioClicked);
+      var name = "featureLayerSourceRadios_" + this._getRandomString();
+      this.mapRadio.name = name;
+      html.setAttr(this.mapRadio, 'id', "mapRadio_" + this._getRandomString());
+      html.setAttr(this.mapLabel, 'for', this.mapRadio.id);
 
-      this.mapRadio = new RadioBtn({
-        group: group,
-        onStateChange: radioChangeHandler,
-        checked: true
-      });
-      this.mapRadio.placeAt(this.mapTd, 'first');
+      this.portalRadio.name = name;
+      html.setAttr(this.portalRadio, 'id', "portalRadio_" + this._getRandomString());
+      html.setAttr(this.portalLabel, 'for', this.portalRadio.id);
 
-      this.portalRadio = new RadioBtn({
-        group: group,
-        onStateChange: radioChangeHandler,
-        checked: false
-      });
-      this.portalRadio.placeAt(this.portalTd, 'first');
-
-      this.urlRadio = new RadioBtn({
-        group: group,
-        onStateChange: radioChangeHandler,
-        checked: false
-      });
-      this.urlRadio.placeAt(this.urlTd, 'first');
-
-      this.own(on(this.mapLabel, 'click', lang.hitch(this, function(){
-        this.mapRadio.check();
-      })));
-
-      this.own(on(this.portalLabel, 'click', lang.hitch(this, function(){
-        this.portalRadio.check();
-      })));
-
-      this.own(on(this.urlLabel, 'click', lang.hitch(this, function(){
-        this.urlRadio.check();
-      })));
+      this.urlRadio.name = name;
+      html.setAttr(this.urlRadio, 'id', "urlRadio_" + this._getRandomString());
+      html.setAttr(this.urlLabel, 'for', this.urlRadio.id);
     },
 
     _getRandomString: function(){

@@ -1,0 +1,168 @@
+.jimu-foldable-panel .title{
+    cursor: pointer;
+    z-index: 101;
+    position: relative;
+    font-weight: bold;
+}
+
+.jimu-foldable-panel>.title {
+  color: white;
+  cursor: pointer;
+  background-color: #336699;
+  box-shadow: 0px 1px 4px 0px rgba(0, 0, 0, 0.4);
+  z-index: 101;
+  position: relative;
+  font-weight: bold;
+}
+
+.jimu-on-screen-widget-panel>.jimu-panel-title {
+    color: white;
+    height: 35px;
+    width: 100%;
+    background-color: #336699;
+    box-shadow: 0px 1px 4px 0px rgba(0, 0, 0, 0.4);
+    position: relative;
+}
+
+.jimu-widget-onscreen-icon.jimu-state-selected {
+    background-color: rgba(143,181,105,1.0);
+}
+
+.jimu-widget-header-controller .logo{
+    float: left;
+    margin-left: 0px;
+    margin-top: 0px !important;
+    height: 60px !important;
+    cursor: pointer;
+}
+
+.jimu-widget-header-controller{
+    box-shadow: 0px 4px 9px 0px rgba(0, 0, 0, 0.8);
+    height: 60px !important;
+	background: #336699;
+}
+
+.jimu-widget-splash-desktop .splash-container{
+  min-width: 350px;
+  max-width: 800px;
+  position: absolute;
+  display: inline-block;
+  background-color: #336699;
+  box-shadow: 0 0 4px rgba(160, 160, 160, 0.4);
+}
+
+.jimu-widget-header-controller .icon-node.jimu-state-selected {
+    background-color: #8fb569;
+    opacity: 1;
+    border: none;
+    border-top: 2px solid #8491a1;
+}
+
+.esriPopup .titlePane {
+    background-color: #336699 !important;
+    border-color: #777777;
+}
+.esriViewPopup .gallery .frame.image {
+  text-align: left;
+  margin-top: 5px;
+}
+.jimu-widget-zoomslider{
+	background-color: rgba(51,102,153,0.0);
+}
+.jimu-widget-zoomslider.vertical .zoom-in {
+	background-color: rgba(51,102,153,0.4);
+}
+.jimu-widget-zoomslider.vertical .zoom-in:hover {
+	background-color: rgba(51,102,153,0.8);
+}
+.jimu-widget-zoomslider.vertical .zoom-out {
+	background-color: rgba(51,102,153,0.4);
+}
+.jimu-widget-zoomslider.vertical .zoom-out:hover {
+	background-color: rgba(51,102,153,0.8);
+}
+.jimu-widget-mylocation .place-holder {
+    background-color: rgba(51,102,153,0.4);
+}
+.jimu-widget-mylocation .place-holder:hover {
+    background-color: rgba(51,102,153,0.8);
+}
+.jimu-widget-mylocation.onCenter .place-holder {
+    background-color: rgba(51,102,153,0.8);
+}
+.jimu-widget-homebutton .HomeButton .home {
+    background-color: rgba(51,102,153,0.4);
+}
+.jimu-widget-homebutton .HomeButton .home:hover {
+    background-color: rgba(51,102,153,0.8);
+}
+.jimu-widget-homebutton.inHome .HomeButton .home {
+    background-color: rgba(143,181,105,1.0);
+}
+.jimu-widget-mylocation .LocateButton .zoomLocateButton{
+    background-color: rgba(51,102,153,0.4);
+}
+.jimu-widget-mylocation .LocateButton .zoomLocateButton:hover{
+    background-color: rgba(51,102,153,0.8);
+}
+.jimu-widget-onscreen-icon {
+    background-color: rgba(51,102,153, 0.4);
+    border: 1px solid rgba(51,102,153, 0.4);
+}
+.jimu-widget-onscreen-icon:hover {
+    background-color: rgba(51,102,153, 0.8);
+    border: 1px solid rgba(51,102,153, 0.8);
+}
+.title {
+  font-weight: bold;
+}
+
+.jimu-preload-widget-icon-panel>.title {
+  color: white;
+  height: 35px;
+  width: 100%;
+  background-color: #336699;
+  box-shadow: 0px 1px 4px 0px rgba(0, 0, 0, 0.4);
+  z-index: 101;
+  position: relative;
+}
+
+.jimu-header-more-popup .icon-node {
+  background-color: #aac3d6;
+  cursor: pointer;
+}
+
+.jimu-header-more-popup .close {
+  position: absolute;
+  width: 08.92857142857143%;
+  height: 08.92857142857143%;
+  top: -04.46428571428571%;
+  right: -04.46428571428571%;
+  border-radius: 50%;
+  background-color: #aac3d6;
+  cursor: pointer;
+}
+
+.jimu-widget-coordinate .coordinate-background{
+  background-color: rgba(218,228,212,0.8);
+  padding: 2px 5px 2px 5px;
+  line-height: 20px;
+  overflow: hidden;
+}
+
+.jimu-widget-coordinate .coordinate-background:hover{
+  background-color: rgba(218,228,212,1.0);
+}
+
+.FoldableTheme.default .search-btn {
+  background-color: rgba(51, 102, 153, 0.8);
+}
+
+.FoldableTheme.default .search-btn:hover {
+  background-color: rgba(51, 102, 153, 1.0);
+}
+
+.jimu-main-font{
+  font-family: 'Open Sans', Helvetica, Arial, sans-serif;
+  /*font-size: 63%;*/
+}

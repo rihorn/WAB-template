@@ -1,6 +1,6 @@
 define({
   "_widgetLabel": "Kontroler zaglavlja",
-  "signin": "Prijavite se",
+  "signin": "Prijava",
   "signout": "Odjava",
   "about": "Informacije",
   "signInTo": "Prijavi se u",

@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,17 +20,21 @@ define([
   'dojo/_base/lang',
   'dojo/Deferred',
   'esri/request',
-  './LayerInfo'
+  './LayerInfo',
+  './LayerInfoFactory'
 ], function(declare, array, lang, Deferred, esriRequest,
-LayerInfo) {
+LayerInfo, LayerInfoFactory) {
   var clazz = declare(LayerInfo, {
 
-    constructor: function(operLayer, map, layerInfoFactory, noLegend) { //done
+    constructor: function(operLayer, map, noLegend) {
       /*jshint unused: false*/
       this.noLegend = noLegend;
     },
 
-    _initVisible: function() { // done
+    getExtent: function() {
+    },
+
+    initVisible: function() {
       /*jshint unused: false*/
       var visible = false, i;
       var mapService = this.originOperLayer.mapService;
@@ -43,12 +47,12 @@ LayerInfo) {
             visible = visible || this.newSubLayers[i].isVisible();
           }*/
           //visible = true;
-          if(mapService.layerInfo._subLayerVisible[mapService.subId]) {
+          if(mapService.layerInfo.subLayerVisible[mapService.subId] > 0) {
             visible = true;
           }
         } else {
           //layer in map service.
-          if(mapService.layerInfo._subLayerVisible[mapService.subId]) {
+          if(mapService.layerInfo.subLayerVisible[mapService.subId] > 0) {
             visible = true;
           }
         }
@@ -56,17 +60,32 @@ LayerInfo) {
       this._visible = visible;
     },
 
-    _setTopLayerVisible: function(visible) { //done
+    _setTopLayerVisible: function(visible) {
       var mapService;
       // mapservice
       if(this.originOperLayer.mapService) {
+        //this.originOperLayer.mapService.layerInfo
+        //.setSubLayerVisible(this.originOperLayer.mapService.subId, visible);
         mapService = this.originOperLayer.mapService;
         if(this.originOperLayer.subLayers.length > 0) {
-          //group in map service.
+          // //group in map service.
+          // for(i=0; i<this.newSubLayers.length; i++) {
+          //   subId = this.newSubLayers[i].originOperLayer.mapService.subId;
+          //   if(visible) {
+          //     mapService.layerInfo.subLayerVisible[subId]++;
+          //   } else {
+          //     mapService.layerInfo.subLayerVisible[subId]--;
+          //   }
+          //   if(mapService.layerInfo.subLayerVisible[subId] > 0) {
+          //     mapService.layerInfo.setSubLayerVisible(subId, true);
+          //   } else {
+          //     mapService.layerInfo.setSubLayerVisible(subId, false);
+          //   }
+          // }
           if(visible) {
-            mapService.layerInfo._subLayerVisible[mapService.subId] = true;
+            mapService.layerInfo.subLayerVisible[mapService.subId]++;
           } else {
-            mapService.layerInfo._subLayerVisible[mapService.subId] = false;
+            mapService.layerInfo.subLayerVisible[mapService.subId]--;
           }
           this._visible = visible;
 
@@ -77,21 +96,21 @@ LayerInfo) {
                 layerInfo.isVisbleOrInvisilbe();
             }
           });
-          mapService.layerInfo._setSubLayerVisible(subLayersVisible);
+          mapService.layerInfo.setSubLayerVisible(subLayersVisible);
         }
       }
     },
 
-    setLayerVisiblefromTopLayer: function() { // done
+    setLayerVisiblefromTopLayer: function() {
     },
 
-    _visibleChanged: function(visible) { //done
+    _visibleChanged: function(visible) {
       /*jshint unused: false*/
       // does not publish event for grouplayer, pulish event on
       // LayerInfoForMapService.
     },
 
-    _sevVisible: function(visible) { //done
+    _sevVisible: function(visible) {
       this.visible = visible;
     },
 
@@ -106,13 +125,13 @@ LayerInfo) {
     //    selfType: dynamic | tiled | group
     // };
 
-    obtainNewSubLayers: function() {//done
+    obtainNewSubLayers: function() {
       var newSubLayers = [];
       array.forEach(this.originOperLayer.subLayers, function(subOperLayer){
         var subLayerInfo;
         // create sub layer
         subOperLayer.parentLayerInfo = this;
-        subLayerInfo = this._layerInfoFactory.create(subOperLayer);
+        subLayerInfo = LayerInfoFactory.getInstance().create(subOperLayer);
         newSubLayers.push(subLayerInfo);
         subLayerInfo.init();
       }, this);
@@ -120,14 +139,14 @@ LayerInfo) {
 
     },
 
-    getOpacity: function() { // done
+    getOpacity: function() {
     },
 
     setOpacity: function(opacity) {
       /*jshint unused: false*/
     },
 
-    getLayerObject: function() {// done
+    getLayerObject: function() {
       var def = new Deferred();
       if(this.layerObject.empty) {
         // *** will improve.
@@ -152,18 +171,18 @@ LayerInfo) {
       return def;
     },
 
-    getLayerType: function() {//done
+    getLayerType: function() {
       var def = new Deferred();
       def.resolve("GroupLayer");
       return def;
     },
 
-    _getShowLegendOfWebmap: function() {// done
+    _getShowLegendOfWebmap: function() {
       var subId = this.originOperLayer.mapService.subId;
       return this.originOperLayer.mapService.layerInfo._getSublayerShowLegendOfWebmap(subId);
     },
 
-    getScaleRange: function() {//done
+    getScaleRange: function() {
       var scaleRange;
       var mapService = this.originOperLayer.mapService;
       var jsapiLayerInfo = mapService.layerInfo._getJsapiLayerInfoById(mapService.subId);

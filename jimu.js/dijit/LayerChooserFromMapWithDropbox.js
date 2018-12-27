@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,9 +52,9 @@ define([
       postCreate: function() {
         this.inherited(arguments);
         this.layerInfosObj = LayerInfos.getInstanceSync();
+        html.addClass(this.layerChooser.domNode, 'jimu-layer-chooser-from-map-withdropbox-popup');
         this.layerChooser.domNode.style.zIndex = 1;
         this.layerChooser.tree.domNode.style.borderTop = "0";
-        this.layerChooser.tree.domNode.style.maxHeight = "290px";
         this.own(on(this.layerChooser, 'tree-click', lang.hitch(this, this._onTreeClick)));
         this.own(on(this.layerChooser, 'update', lang.hitch(this, this._onLayerChooserUpdate)));
         this.own(on(document.body, 'click', lang.hitch(this, this._onBodyClicked)));
@@ -141,10 +141,10 @@ define([
 
       showLayerChooser: function() {
         var width = this.domNode.clientWidth;
-        // if (width < 200) {
-        //   width = 200;
-        // }
-        this.layerChooser.domNode.style.minWidth = width + 2 + "px";
+        if (width < 200) {
+          width = 200;
+        }
+        this.layerChooser.domNode.style.width = width + 2 + "px";
 
         dojoPopup.open({
           parent: this,
@@ -184,7 +184,6 @@ define([
         this.hideLayerChooser();
         var title = lang.getObject("layerInfo.title", false, this._selectedItem) || "";
         this.layerNameNode.innerHTML = title;
-        html.setAttr(this.layerNameNode, 'title', title);
         var layer = lang.getObject("layerInfo.layerObject", false, this._selectedItem);
 
         if(isChanged){

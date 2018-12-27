@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ define([
     'dojo/query',
     'dojo/NodeList-traverse',
     'dojo/Deferred',
-    'dojo/promise/all',
     'dojo/on',
     'dojo/json',
     'dojo/cookie',
@@ -37,7 +36,6 @@ define([
     'esri/dijit/PopupTemplate',
     'esri/SpatialReference',
     'esri/geometry/Extent',
-    'esri/geometry/geometryEngine',
     'esri/geometry/Multipoint',
     'esri/geometry/Polyline',
     'esri/geometry/Polygon',
@@ -48,20 +46,17 @@ define([
     'esri/symbols/PictureMarkerSymbol',
     'esri/urlUtils',
     'esri/request',
-    'esri/tasks/query',
-    'esri/tasks/QueryTask',
     'esri/graphicsUtils',
     'jimu/portalUrlUtils',
-    './shared/utils',
-    './zoomToUtils'
+    './shared/utils'
   ],
 
-function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on, json, cookie,
+function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, on, json, cookie,
   dojoNumber, dateLocale, nlsBundle, base64, esriLang, arcgisUtils, PopupTemplate, SpatialReference,
-  Extent, geometryEngine, Multipoint, Polyline, Polygon, webMercatorUtils, GeometryService, ProjectParameters,
-  FeatureSet, PictureMarkerSymbol, esriUrlUtils, esriRequest, EsriQuery, QueryTask, graphicsUtils, portalUrlUtils,
-  sharedUtils, zoomToUtils
-) {
+  Extent, Multipoint,
+  Polyline, Polygon, webMercatorUtils, GeometryService, ProjectParameters, FeatureSet,
+  PictureMarkerSymbol,
+  esriUrlUtils, esriRequest, graphicsUtils, portalUrlUtils, sharedUtils) {
   /* global esriConfig, dojoConfig, ActiveXObject, testLoad */
   var mo = {};
 
@@ -72,7 +67,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
   };
 
   lang.mixin(mo, sharedUtils);
-  lang.mixin(mo, zoomToUtils);
 
   if (!window.atob) {
     window.atob = function(b64) {
@@ -203,7 +197,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
     return def;
   }
 
-
   function addRelativePathInCss(css, rpath){
     var m = css.match(/url\([^)]+\)/gi), i, m2;
 
@@ -214,9 +207,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
       m2 = m[i].match(/(url\(["|']?)(.*)((?:['|"]?)\))/i);
       if(m2.length >= 4){
         var path = m2[2];
-        if(/^data:image\/.*;/.test(path)){
-          continue;
-        }
         if(!rpath.endWith('/')){
           rpath = rpath + '/';
         }
@@ -499,25 +489,25 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
             return false;
           }
           switch (typeof(x[p])) {
-            case 'object':
-            case 'function':
-              leftChain.push(x);
-              rightChain.push(y);
-              if (!compare2Objects(x[p], y[p])) {
-                return false;
-              }
-              leftChain.pop();
-              rightChain.pop();
-              break;
-            default:
-              // remember that NaN === NaN returns false
-              if (isNaN(x[p]) && isNaN(y[p]) && typeof x[p] === 'number' && typeof y[p] === 'number') {
-                continue;
-              }
-              if (x[p] !== y[p]) {
-                return false;
-              }
-              break;
+          case 'object':
+          case 'function':
+            leftChain.push(x);
+            rightChain.push(y);
+            if (!compare2Objects(x[p], y[p])) {
+              return false;
+            }
+            leftChain.pop();
+            rightChain.pop();
+            break;
+          default:
+            // remember that NaN === NaN returns false
+            if (isNaN(x[p]) && isNaN(y[p]) && typeof x[p] === 'number' && typeof y[p] === 'number') {
+              return true;
+            }
+            if (x[p] !== y[p]) {
+              return false;
+            }
+            break;
           }
         }
       }
@@ -759,30 +749,53 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
   };
 
   ///////////////////widget json(in app config json) processing
-
-  mo.getUriInfo = function getUriInfo(uri) {
-    var pos, firstSeg, info = {},
-      amdFolder;
-
-    pos = uri.indexOf('/');
-    firstSeg = uri.substring(0, pos);
-
-    //config using package
-    amdFolder = uri.substring(0, uri.lastIndexOf('/') + 1);
-    info.folderUrl = require(mo.getRequireConfig()).toUrl(amdFolder);
-    info.amdFolder = amdFolder;
-
-    info.url = info.folderUrl;//for backward compatibility
-
-    if(/^http(s)?:\/\//.test(uri) || /^\/\//.test(uri)){
-      info.isRemote = true;
-    }
-
-    return info;
-  };
-
   mo.widgetJson = (function(){
     var ret = {};
+
+    /**
+     * get uri info from the configured uri property,
+     * the info contains: folderUrl, name
+     */
+    function getUriInfo(uri) {
+      var pos, firstSeg, info = {},
+        amdFolder;
+
+      pos = uri.indexOf('/');
+      firstSeg = uri.substring(0, pos);
+
+      //config using package
+      amdFolder = uri.substring(0, uri.lastIndexOf('/') + 1);
+      info.folderUrl = require(mo.getRequireConfig()).toUrl(amdFolder);
+      info.amdFolder = amdFolder;
+      return info;
+    }
+
+    function processRemoteUri(widgetJson){
+      if(!widgetJson.uri.toLowerCase().endWith('.js')){
+        widgetJson.uri = widgetJson.uri + '.js';
+      }
+    }
+
+    ret.processWidgetJson = function(widgetJson) {
+      if (!widgetJson.uri) {
+        return widgetJson;
+      }
+      if(widgetJson.uri.toLowerCase().startWith('http')){
+        widgetJson.isRemote = true;
+        processRemoteUri(widgetJson);
+      }
+      lang.mixin(widgetJson, getUriInfo(widgetJson.uri));
+
+      if (!widgetJson.icon) {
+        widgetJson.icon = widgetJson.amdFolder + 'images/icon.png?wab_dv=' + window.deployVersion;
+      }
+      if (!widgetJson.thumbnail) {
+        widgetJson.thumbnail = widgetJson.amdFolder + 'images/thumbnail.png';
+      }
+
+      //widgetJson.label has been processed when loading config.
+      return widgetJson;
+    };
 
     ret.addManifest2WidgetJson = function(widgetJson, manifest){
       lang.mixin(widgetJson, manifest.properties);
@@ -791,24 +804,9 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
         widgetJson.label = manifest.label;
       }
       widgetJson.manifest = manifest;
-      widgetJson.isRemote = manifest.isRemote;
-      if(widgetJson.isRemote){
-        widgetJson.itemId = manifest.itemId;
-      }
       if(manifest.featureActions){
         widgetJson.featureActions = manifest.featureActions;
       }
-
-      if (!widgetJson.icon) {
-        widgetJson.icon = manifest.icon;
-      }
-
-      if (!widgetJson.thumbnail) {
-        widgetJson.thumbnail = manifest.thumbnail;
-      }
-
-      widgetJson.folderUrl = manifest.folderUrl;
-      widgetJson.amdFolder = manifest.amdFolder;
     };
 
     ret.removeManifestFromWidgetJson = function(widgetJson){
@@ -825,35 +823,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
       widgetJson.featureActions = undefined;
       widgetJson.manifest = undefined;
     };
-
-    ret.getUriFromItem = function(item){
-      if(!item.url){
-        return null;
-      }
-
-      return ret.getFolderUrlFromItem(item) + 'Widget';
-    };
-
-    ret.getFolderUrlFromItem = function(item){
-      if(!item.url){
-        return null;
-      }
-
-      var url;
-      if(/manifest\.json$/.test(item.url)){
-        url = item.url.substring(0, item.url.length - 'manifest.json'.length);
-      }else if(/\/$/.test(item.url)){
-        url = item.url;
-      }else{
-        url = item.url + '/';
-      }
-
-      if(window.location.protocol === "https:"){
-        url = url.replace(/^http:\/\//, 'https://');
-      }
-      return url;
-    };
-
     return ret;
   })();
 
@@ -1162,46 +1131,8 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
     }
   };
 
-  mo.isNotEmptyStringArray = function(strArray, /* optional */ trim){
-    for(var key = 0; key < strArray.length; key++){
-      var str = strArray[key];
-      var strVal = str.value ? str.value : str;
-      var isNotEmpty = mo.isNotEmptyString(strVal, trim);
-      if(!isNotEmpty){
-        return false;
-      }
-    }
-    return true;
-  };
-
   mo.isValidNumber = function(num){
     return typeof num === 'number' && !isNaN(num);
-  };
-
-  mo.isValidNumberArray = function(numArray){
-    for(var key = 0; key < numArray.length; key++){
-      var num = numArray[key];
-      num = (num.value || num.value === 0) ? num.value : num;
-      var isValid = mo.isValidNumber(num);
-      if(!isValid){
-        return false;
-      }
-    }
-    return true;
-  };
-
-  mo.isValidDate = function(date){
-    if(date){ //null, '', undefined
-      try {
-        var d = new Date(date);
-        return !isNaN(d.getTime()); // d.toString() === 'Invalid Date'
-      }catch (err) {
-        console.error(err);
-        return false;
-      }
-    }else{
-      return false;
-    }
   };
 
   mo.isObject = function(o) {
@@ -1337,7 +1268,7 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
   mo.changeLocation = function(newUrl){
     // debugger;
     if (window.history.pushState) {
-      window.history.pushState({path:newUrl}, '', encodeURI(newUrl));
+      window.history.pushState({path:newUrl}, '', newUrl);
     }/*else{
       window.location.href = newUrl;
     }*/
@@ -1402,13 +1333,7 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
     }
 
     ret.addManifestProperies = function(manifest) {
-      if(!manifest.icon){
-        manifest.icon = manifest.folderUrl + 'images/icon.png?wab_dv=' + window.deployVersion;
-      }
-
-      if (!manifest.thumbnail) {
-        manifest.thumbnail = manifest.folderUrl + 'images/thumbnail.png';
-      }
+      manifest.icon = manifest.url + 'images/icon.png?wab_dv=' + window.deployVersion;
 
       if(manifest.category === "theme") {
         addThemeManifestProperies(manifest);
@@ -1458,7 +1383,7 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
 
       //theme or widget label
       var nlsFile;
-      if(manifest.isRemote){
+      if(manifest.amdFolder.toLowerCase().startWith('http')){
         nlsFile = manifest.amdFolder + 'nls/strings.js';
       }else{
         nlsFile = manifest.amdFolder + 'nls/strings';
@@ -1476,221 +1401,16 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
     return ret;
   })();
 
-  mo.isNumberField = function(fieldType){
-    var numberFieldTypes = [
-      'esriFieldTypeOID',
-      'esriFieldTypeSmallInteger',
-      'esriFieldTypeInteger',
-      'esriFieldTypeSingle',
-      'esriFieldTypeDouble'
-    ];
-    return numberFieldTypes.indexOf(fieldType) >= 0;
-  };
-
-  mo.getTime = function (date) {
-    var _off = date.getTimezoneOffset();
-    var _offTimes = _off < 0 ? "+" + (Math.abs(_off) / 60) : "-" + (_off / 60);
-    return date.getTime() + _offTimes * 60 * 60 * 1000;
-  };
-
-  //return [{value,label}]
-  mo.getUniqueValues = function(
-    featureOrImageLayerUrl,
-    fieldName,
-    where,
-    /*optional*/ _layerDefinition,
-    /*optional*/ _fieldPopupInfo){ //dateField requires _fieldPopupInfo to show correct dateformat.
-
-    function getLayerDefinitionAndFieldPopupInfo(){
-      var def = new Deferred();
-      var defVals = {};
-      if(_layerDefinition){
-        defVals.layerDefinition = _layerDefinition;
-        if(_fieldPopupInfo){
-          defVals.fieldPopupInfo = _fieldPopupInfo;
-        }
-        def.resolve(defVals);
-      }else{
-        def = esriRequest({
-          url: featureOrImageLayerUrl,
-          content: {f : 'json'},
-          handleAs: 'json',
-          callbackParamName: 'callback'
-        }).then(function(response){
-          defVals.layerDefinition = response;
-          return defVals;
-        },function(error) {
-          console.log("Error: ", error.message);
-        });
-      }
-      return def;
-    }
-    return getLayerDefinitionAndFieldPopupInfo().then(function(defVals){
-      return mo._getUniqueValues(featureOrImageLayerUrl, fieldName, where, defVals.layerDefinition)
-      .then(function(values){
-        var layerDefinition = defVals.layerDefinition;
-        var fieldPopupInfo = defVals.fieldPopupInfo;
-        return mo._getValues(layerDefinition, fieldPopupInfo, fieldName, values);
-      });
-    });
-  };
-
-  mo._getValues = function(layerDefinition, fieldPopupInfo, fieldName, values){
-    var valueLabels = [];
-    var fieldInfo = mo.getFieldInfoByFieldName(layerDefinition.fields, fieldName);
-    var codedValueObj = null;//{value:label}
-    var isNumberField = mo.isNumberField(fieldInfo.type);
-    var isDateField = fieldInfo.type === 'esriFieldTypeDate' ? true : false;
-    if(fieldInfo){
-      if(isNumberField){
-        values = array.map(values, function(v){
-          var r = parseFloat(v);
-          if(isNaN(r)){
-            r = null;
-          }
-          return r;
-        });
-      }else if(isDateField){
-        values = array.map(values, lang.hitch(this, function(v) {
-          if(mo.isValidDate(v)){
-            //convert it to num when server returns a purely numeric string
-            // var numExp = new RegExp("^[0-9]*$");
-            // if(typeof v === 'string' && numExp.test(v)){
-            //   v = parseInt(v, 10);
-            // }
-            // var r = mo.localizeDateByFieldInfo(v, fieldPopupInfo);
-            //display locate time to user
-            var dFormat = fieldPopupInfo ? fieldPopupInfo.format.dateFormat : '';
-            var newV = dFormat.indexOf('Time') < 0? v: mo.getTime(new Date(v));
-            var r = mo.localizeDateByFieldInfo(new Date(newV), fieldPopupInfo);
-            return r;
-            // return v;
-          }else{
-            return v;
-            // return null;
-          }
-        }));
-      }
-      //coded values
-      var domainValLabels = mo.getCodedValueListForCodedValueOrSubTypes(layerDefinition, fieldName);//[{value,label}]
-      if(domainValLabels !== null){
-        codedValueObj = {};
-        for(var key = 0; key < domainValLabels.length; key ++){
-          codedValueObj[domainValLabels[key].value] = domainValLabels[key].label;
-        }
-      }
-    }
-    valueLabels = array.map(values, function(value){
-      var label = null;
-      if(value === null || value === undefined){
-        label = '<Null>';
-      }else{
-        if(codedValueObj && codedValueObj.hasOwnProperty(value)){
-          label = codedValueObj[value];
-        }else{
-          if(isNumberField){
-            if(fieldPopupInfo){
-              label = mo.localizeNumberByFieldInfo(value, fieldPopupInfo);
-            }else{
-              label = mo.localizeNumber(value);
-            }
-            // }else if(isDateField){
-            //   var dFormat = fieldPopupInfo ? fieldPopupInfo.format.dateFormat : '';
-            //   var newV = dFormat.indexOf('Time') < 0? value: mo.getTime(new Date(value));
-            //   label = mo.localizeDateByFieldInfo(new Date(newV), fieldPopupInfo);
-          }else{
-            label = value;
-          }
-        }
-      }
-      return {
-        value: value,
-        label: label
-      };
-    });
-    return valueLabels;
-  };
-
-  mo._getUniqueValues = function(featureOrImageLayerUrl, fieldName, where, layerDefinition){
+  mo.getUniqueValues = function(url, fieldName){
     var def = new Deferred();
-    var url = featureOrImageLayerUrl.replace(/\/*$/g, '');
-    if(!where){
-      where = '1=1';
-    }
-
-    //MapService and FeatureServie both support QueryTask and generateRenderer.
-    //But QueryTask has the maxRecordCount limit, generateRenderer doesn't.
-    //ImageServer only supports QueryTask.
-    var reg = /\/ImageServer$/gi;
-    var isImageService = reg.test(url);
-    var isDynamicLayer = url.indexOf('MapServer/dynamicLayer') > -1;
-    if(isImageService || isDynamicLayer){
-      def = mo._getUniqueValuesByQueryTask(url, fieldName, where);
-    }else{
-      var fieldInfo = mo.getFieldInfoByFieldName(layerDefinition.fields, fieldName);
-      var codedValuesOrTypesCount = mo.getCodedValuesOrTypesCount(fieldInfo, layerDefinition);
-      if(codedValuesOrTypesCount > 0){
-        def = mo._getUniqueValuesByQueryTask(url, fieldName, where);
-      }else{
-        def = mo._getUniqueValuesByGenerateRenderer(url, fieldName, where);
-      }
-    }
-
-    return def;
-  };
-
-  //get codedValue or types count, return number
-  mo.getCodedValuesOrTypesCount = function(fieldInfo, layerDefinition){
-    if(fieldInfo){
-      if(layerDefinition.typeIdField && layerDefinition.typeIdField.toUpperCase() === fieldInfo.name.toUpperCase() &&
-        layerDefinition.types){
-        return layerDefinition.types.length;
-      }else{
-        var codedValues = mo._getAllCodedValue(layerDefinition, fieldInfo);
-        return codedValues ? codedValues.length : 0;
-      }
-    }
-    return 0;
-  };
-
-  mo._getUniqueValuesByQueryTask = function(url, fieldName, where){
-    var queryParams = new EsriQuery();
-    queryParams.where = where;
-    queryParams.returnDistinctValues = true;
-    queryParams.returnGeometry = false;
-    queryParams.outFields = [fieldName];
-    var queryTask = new QueryTask(url);
-    return queryTask.execute(queryParams).then(function(response){
-      var values = [];
-      if(response.features && response.features.length > 0){
-        array.forEach(response.features, function(feature){
-          if(feature && feature.attributes){
-            values.push(feature.attributes[fieldName]);
-          }
-        });
-      }
-      return values;
-    });
-  };
-
-  mo._getUniqueValuesByGenerateRenderer = function(featureLayerUrl, fieldName, where){
-    var def = new Deferred();
-    var segs = featureLayerUrl.split('?');
-    var reqUrl;
-    if(segs.length > 1){
-      reqUrl = segs[0].replace(/\/*$/g, '') + "/generateRenderer?" + segs[1];
-    }else{
-      reqUrl = featureLayerUrl.replace(/\/*$/g, '') + "/generateRenderer";
-    }
-
+    var reqUrl = url.replace(/\/*$/g, '') + "/generateRenderer";
     var classificationDef = {"type":"uniqueValueDef", "uniqueValueFields":[fieldName]};
     var str = json.stringify(classificationDef);
     esriRequest({
       url: reqUrl,
       content: {
         classificationDef: str,
-        f: 'json',
-        where: where
+        f: 'json'
       },
       handleAs: 'json',
       callbackParamName:'callback'
@@ -1707,11 +1427,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
       def.reject(err);
     }));
     return def;
-  };
-
-  mo.isCodedValuesSupportFilter = function(layerDefinition, codedValueLength){
-    var version = parseFloat(layerDefinition.currentVersion);
-    return codedValueLength <= parseFloat(layerDefinition.maxRecordCount) && version > 10.1;
   };
 
   mo.combineRadioCheckBoxWithLabel = function(inputDom, labelDom){
@@ -2028,10 +1743,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
     };
     lang.mixin(_options, options || {});
 
-    if(config.locale === 'ar' && _options.formatLength !== 'long' && _options.formatLength !== 'full') {
-      _options.formatLength = 'long';
-    }
-
     try {
       var ld = dateLocale.format(d, _options);
       return ld;
@@ -2107,9 +1818,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
             if (e === -1) {
               e = str.length;
             }
-            var nl = str.indexOf('\r\n', s) > -1 ? str.indexOf('\r\n', s) :
-              str.indexOf('\n', s) > -1 ? str.indexOf('\n', s) : e;
-            e = nl < e ? nl : e;
             var link = str.substring(s, e);
             str = str.substring(0, s) +
               '<A href="' + link + '" target="_blank">' + link + '</A>' +
@@ -2117,12 +1825,7 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
           }
         }
       }
-
-      if(typeof str === undefined || str === null){
-        return '';
-      }
-
-      return str;
+      return str || "";
     },
 
     getFormattedNumber: function(num, format) {
@@ -2150,7 +1853,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
       return timeNumber || "";
     },
 
-    //refer to getDisplayValueForCodedValueOrSubtype(layerDefinition, fieldName, attributes)
     getCodedValue: function(domain, v) {
       if (domain && domain.codedValues) {
         for (var i = 0, len = domain.codedValues.length; i < len; i++) {
@@ -2218,24 +1920,7 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
         }
       }
       return ret;
-    },
-
-    compareUrl: function(url1, url2) {
-      var _url1, _url2;
-      _url1 = this.getUrlPath(url1);
-      _url2 = this.getUrlPath(url2);
-
-      _url1 = portalUrlUtils.removeProtocol(_url1.toString().toLowerCase()).replace(/\/+/g, '/');
-      _url2 = portalUrlUtils.removeProtocol(_url2.toString().toLowerCase()).replace(/\/+/g, '/');
-
-      return _url1 === _url2;
-    },
-
-    getUrlPath: function(url) {
-      var urlObject = esriUrlUtils.urlToObject(url);
-      return urlObject.path;
     }
-
   };
 
   mo.processUrlInWidgetConfig = function(url, widgetFolderUrl){
@@ -2296,25 +1981,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
       return "#000000";
     } else {
       return "#ffffff";
-    }
-  };
-
-  mo.isLightColor = function(colorHex){
-    var color = colorHex;
-    color = color.substring(1);           // remove #
-    if (color.length === 3) {
-      color = color.slice(0, 1) +
-              color.slice(0, 1) +
-              color.slice(1, 1) +
-              color.slice(1, 1) +
-              color.slice(2, 1) +
-              color.slice(2, 1);
-    }
-    color = parseInt(color, 16);          // convert to integer
-    if(color > 7829367) {
-      return true;
-    } else {
-      return false;
     }
   };
 
@@ -2382,28 +2048,15 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
           }
         }, this);
       }else{
-        var managerName;
-        if(config1.layoutDefinition){
-          managerName = config1.layoutDefinition.manager;
-        }else{
-          managerName = 'jimu/layoutManagers/AbsolutePositionLayoutManager';
-        }
-
-        if(managerName === 'jimu/layoutManagers/AbsolutePositionLayoutManager'){
-          array.forEach(os2.groups, function(group2, i){
-            if(group2.panel && group2.panel.position &&
-              !group2.panel.position.relativeTo){
-              group2.panel.position.relativeTo = 'map';
-            }
-            if(os1.groups[i] && group2.panel && group2.panel.position){
-              os1.groups[i].panel.position = group2.panel.position;
-            }
-          });
-        }else if(managerName === 'jimu/layoutManagers/GridLayoutManager'){
-          os1.groups = handleGridLayoutOnScreenGroupChange(os1.groups, os2.groups.map(function(g){
-            return g.id;
-          }));
-        }
+        array.forEach(os2.groups, function(group2, i){
+          if(group2.panel && group2.panel.position &&
+            !group2.panel.position.relativeTo){
+            group2.panel.position.relativeTo = 'map';
+          }
+          if(os1.groups[i] && group2.panel.position){
+            os1.groups[i].panel.position = group2.panel.position;
+          }
+        });
       }
     }
 
@@ -2428,49 +2081,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
     }
     return mixinConfig;
   };
-
-  function handleGridLayoutOnScreenGroupChange(oldGroups, newGroupIds){
-    var oldGroupIds = oldGroups.map(function(g){
-      return g.id;
-    });
-
-    array.forEach(newGroupIds, function(gId){
-      if(oldGroupIds.indexOf(gId) < 0){// new add group
-        oldGroups.push({
-          id: gId,
-          widgets: []
-        });
-      }
-    }, this);
-
-    var removedGroups = [];
-    oldGroups = array.filter(oldGroups, function(g){
-      if(newGroupIds.indexOf(g.id) < 0){// group is removed
-        removedGroups.push(g);
-        return false;
-      }else{
-        return true;
-      }
-    }, this);
-
-    if(oldGroups.length === 0){
-      return [];
-    }
-    //put widgets in removed groups into the last group
-    var toAddGroup = oldGroups[oldGroups.length - 1];
-    array.forEach(removedGroups, function(removedGroup){
-      toAddGroup.widgets = toAddGroup.widgets.concat(removedGroup.widgets);
-    }, this);
-
-    oldGroups = oldGroups.sort(function(g1, g2){
-      return newGroupIds.indexOf(g1.id) - newGroupIds.indexOf(g2.id);
-    });
-
-    return oldGroups;
-  }
-
-  mo.handleGridLayoutOnScreenGroupChange = handleGridLayoutOnScreenGroupChange;
-
   /**********************************
    * About template
    **********************************/
@@ -2909,6 +2519,24 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
     delete mapOptions.minZoom;
   };
 
+  mo.graphicsExtent = function(graphics, /* optional */ factor){
+    var ext = null;
+    try {
+      if(graphics.length > 0){
+        //if graphics.length === 1 and the graphic is a point, it will throw an Exception here
+        ext = graphicsUtils.graphicsExtent(graphics);
+        if (ext) {
+          if(typeof factor === "number" && factor > 0){
+            ext = ext.expand(factor);
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return ext;
+  };
+
   mo.sanitizeHTML = function(snippet){
     /* global html_sanitize */
 
@@ -2931,15 +2559,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
     } else {
       return str;
     }
-  };
-
-  mo.encodeHTML = function (source) {
-    return String(source)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
   };
 
   mo.removeSuffixSlashes = function(url){
@@ -2998,617 +2617,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
     return displayValue;
   };
 
-  //only get codedValues in field domain
-  //return [{value,label}], return null means not coded value field
-  mo._getCodedValues = function(fieldInfo) {
-    var codedValues = null;
-    var domain = fieldInfo.domain;
-    if (domain && domain.type === 'codedValue') {
-      if (domain.codedValues && domain.codedValues.length > 0) {
-        codedValues = domain.codedValues;
-        //{code,name}=>{value,label}
-        //code is value and name is description
-        codedValues = array.map(codedValues, lang.hitch(this, function(item) {
-          return {
-            value: item.code,
-            label: item.name
-          };
-        }));
-      }
-    }
-    return codedValues;
-  };
-
-  //get subtypes list in subtypes property
-  //return [{value,label}], return null means no subtypes
-  mo._getSubTypes = function(layerDefinition) {
-    var subTypes = null;
-    if (layerDefinition.subtypeField && layerDefinition.subtypes && layerDefinition.subtypes.length > 0) {
-      //{id,name}=>{value,label}
-      subTypes = array.map(layerDefinition.subtypes, lang.hitch(this, function(item) {
-        return {
-          value: item.id,
-          label: item.name
-        };
-      }));
-    }
-    return subTypes;
-  };
-
-  //get renders list in types property
-  //return [{value,label}], return null means no render types
-  mo._getRenderTypes = function(layerDefinition) {
-    var subTypes = null;
-    if (layerDefinition.typeIdField && layerDefinition.types && layerDefinition.types.length > 0) {
-      //{id,name}=>{value,label}
-      subTypes = array.map(layerDefinition.types, lang.hitch(this, function(item) {
-        return {
-          value: item.id,
-          label: item.name
-        };
-      }));
-      //update labels by render
-      // subTypes = mo._updateCodedValueListFromRender(layerDefinition, subTypes);
-    }
-    return subTypes;
-  };
-
-  //return [{value,label}], maybe return null
-  mo._getCodedValueOrSubtypes = function(layerDefinition, fieldName, /*optional*/ typeIdFieldValue){
-    //http://servicesdev1.arcgis.com/5uh3wwYLNzBuU0Eu/arcgis/rest/services/CarsandLivingThings/FeatureServer/0?f=pjson
-    var fieldInfo = mo.getFieldInfoByFieldName(layerDefinition.fields, fieldName);
-    var codedValues;
-    //query codedvalue from types-domain
-    if(typeIdFieldValue !== undefined && typeIdFieldValue !== null){ //it can be 0(number)
-      codedValues = mo._getCodedValueBySubTypeId(layerDefinition, fieldName, typeIdFieldValue, /*optional*/fieldInfo);
-    }else{
-      codedValues = mo._getAllCodedValue(layerDefinition, fieldInfo);
-    }
-    return codedValues;
-
-    /*
-    //http://servicesdev1.arcgis.com/5uh3wwYLNzBuU0Eu/arcgis/rest/services/CarsandLivingThings/FeatureServer/0?f=pjson
-    var fieldInfo = mo.getFieldInfoByFieldName(layerDefinition.fields, fieldName);
-    //check normal coded values
-    var codedValues = mo._getCodedValues(fieldInfo);//[{value,label}]
-
-    if(!codedValues || codedValues.length === 0){
-      if (layerDefinition.typeIdField) {
-        var subTypes = mo._getRenderTypes(layerDefinition);//[{value,label}]
-
-        //typeIdField maybe doesn't match the real subtype field exactly
-        if (layerDefinition.typeIdField.toUpperCase() === fieldName.toUpperCase()) {
-          //check subtypes
-          codedValues = subTypes;
-        }else{
-          //check codedvalues related to subtype
-          if(typeIdFieldValue !== undefined && typeIdFieldValue !== null){
-            if(layerDefinition.types && layerDefinition.types.length > 0){
-              array.some(layerDefinition.types, lang.hitch(this, function(item){
-                if(item.name === typeIdFieldValue){
-                  if(item.type === 'codedValue'){
-                    codedValues = item.codedValues;
-                  }
-                  return true;
-                }else{
-                  return false;
-                }
-              }));
-            }
-          }
-        }
-      }
-    }
-    return codedValues;
-    */
-  };
-
-  //return {isCodedValueOrSubtype,displayValue}
-  mo._getDisplayValueForCodedValueOrSubtype = function(layerDefinition, fieldName, fieldValue,
-    /*optional*/ typeIdFieldValue){
-    var result = {
-      isCodedValueOrSubtype: false,
-      displayValue: fieldValue + ''//convert it to a string if it's a numberical value.
-    };
-
-    //[{value,label}]
-    var codedValues = mo._getCodedValueOrSubtypes(layerDefinition, fieldName, typeIdFieldValue);
-
-    if(codedValues && codedValues.length > 0){
-      array.some(codedValues, lang.hitch(this, function(item){
-        if(item.value === fieldValue){
-          result = {
-            isCodedValueOrSubtype: true,
-            displayValue: item.label
-          };
-          return true;
-        }else{
-          return false;
-        }
-      }));
-    }
-    return result;
-  };
-
-
-  // Delete subtype related properties for 6.3 ---temp function
-  // subtypeField(string fieldName), subtypes(array)
-  // These two properties are used to verify if a layer has subtype field,
-  // we can get subtype field name by subtypeField property, get subtype configuration by subtypes property.
-  // But right now, this is not yet supported with online or enterprise hosted feature services.
-  //                Only enterprise gdb based feature survices have it(10.5 added).
-  // It's hard to prepare this condition to test it now, so leave it to next release.
-  mo._deleteSubtypePropertiesTemp = function(layerDefinition){
-    delete layerDefinition.subtypeField;
-    delete layerDefinition.subtypes;
-  };
-
-  //get display label by code from a feature attributes
-  //attributes is feature's attributes
-  //return {isCodedValueOrSubtype,displayValue}
-  mo.getDisplayValueForCodedValueOrSubtype = function(layerDefinition, fieldName, attributes){
-    mo._deleteSubtypePropertiesTemp(layerDefinition);
-    var fieldValue = attributes[fieldName];
-    var typeIdFieldValue;
-    var typeIdField = layerDefinition.typeIdField;
-    if(attributes.hasOwnProperty(typeIdField)){
-      typeIdFieldValue = attributes[typeIdField];
-    }
-
-    var subtypeField = layerDefinition.subtypeField;
-    if(subtypeField && layerDefinition.subtypes && layerDefinition.subtypes.length > 0){
-      if(attributes.hasOwnProperty(subtypeField)){
-        typeIdFieldValue = attributes[subtypeField];
-      }
-    }
-
-    var result = mo._getDisplayValueForCodedValueOrSubtype(layerDefinition, fieldName, fieldValue, typeIdFieldValue);
-    if(layerDefinition.typeIdField === fieldName){
-      var codedvalue = [{value: attributes[fieldName], label: result.displayValue}];
-      result.displayValue = mo._updateCodedValueListFromRender(layerDefinition, codedvalue)[0].label;
-    }
-    return result;
-
-  };
-
-  //get fieldValue's displayValue from a codedValues array
-  //return {isCodedValueOrSubtype,displayValue}
-  mo._getDisplayValueFromCodedValues = function(fieldValue, codedValues){
-    var result = {
-      isCodedValueOrSubtype: false,
-      displayValue: fieldValue + '' //convert it to a string if it's a numberical value.
-    };
-    if(codedValues && codedValues.length > 0){
-      array.some(codedValues, lang.hitch(this, function(item){
-        if(item.value === fieldValue){
-          result = {
-            isCodedValueOrSubtype: true,
-            displayValue: item.label
-          };
-          return true;
-        }else{
-          return false;
-        }
-      }));
-    }
-    result.value = fieldValue;
-    return result;
-  };
-
-  //get display label list by code from a feature attributes
-  //attributesList is a array of feature's attributes
-  //return [{isCodedValueOrSubtype,value,label}]
-  mo.getDisplayValueForCodedValueOrSubtypeBatch = function(layerDefinition, fieldName, attributesList){
-    mo._deleteSubtypePropertiesTemp(layerDefinition);
-    var codedValueHash = {};
-    var typeIdField = layerDefinition.typeIdField;
-    var subtypeField = layerDefinition.subtypeField;
-    var fieldInfo = mo.getFieldInfoByFieldName(layerDefinition.fields, fieldName);
-    if(subtypeField && layerDefinition.subtypes && layerDefinition.subtypes.length > 0){
-      codedValueHash.subType = mo._getSubTypes(layerDefinition);//subtype list
-      typeIdField = subtypeField;
-      codedValueHash.all = mo._getAllCodedValueNew(layerDefinition, fieldInfo); //all codedvalue list
-    }else{
-      codedValueHash.all = mo._getAllCodedValue(layerDefinition, fieldInfo); //all codedvalue list
-      codedValueHash.subType = mo._getRenderTypes(layerDefinition);//subtype list
-    }
-    if(codedValueHash.subType && codedValueHash.subType.length > 0){
-      var subTypeValues = codedValueHash.subType;
-      for(var index in subTypeValues){
-        var stValue = subTypeValues[index].value;
-        //codedvalue list by subtypeid
-        // codedValueHash[stValue] = mo._getCodedValueBySubTypeId(layerDefinition, fieldName, stValue, fieldInfo);
-        var list = mo._getCodedValueBySubTypeId(layerDefinition, fieldName, stValue, fieldInfo);
-        codedValueHash[stValue] = layerDefinition.typeIdField === fieldName ?
-          mo._updateCodedValueListFromRender(layerDefinition, list): list;
-      }
-    }
-
-    //get labels by render
-    if(layerDefinition.typeIdField === fieldName){
-      codedValueHash.subType = mo._updateCodedValueListFromRender(layerDefinition, codedValueHash.subType);
-      codedValueHash.all = mo._updateCodedValueListFromRender(layerDefinition, codedValueHash.all);
-    }
-
-    var codedValueList = [];
-    var resultList = [];
-    for(var key in attributesList){
-      var attrs = attributesList[key];
-      var fieldValue = attrs[fieldName];
-      var typeIdFieldValue;
-      if(typeIdField === fieldName){
-        codedValueList = codedValueHash.subType;
-      }else{
-        if(attrs.hasOwnProperty(typeIdField)){
-          typeIdFieldValue = attrs[typeIdField];
-          codedValueList = codedValueHash[typeIdFieldValue];
-          if(!codedValueList){//pass a error subtype, could get null from hash.
-            codedValueList = mo._getCodedValues(fieldInfo); //return field domain
-            if(layerDefinition.typeIdField === fieldName){
-              codedValueList = mo._updateCodedValueListFromRender(layerDefinition, codedValueList);
-            }
-          }
-        }else{
-          codedValueList = codedValueHash.all;
-        }
-      }
-
-      var result = mo._getDisplayValueFromCodedValues(fieldValue, codedValueList);
-      resultList.push(result);
-    }
-    return resultList;
-
-    /*
-    var codedValueHash = {};
-    var typeIdField = layerDefinition.typeIdField;
-    codedValueHash.subType = mo._getRenderTypes(layerDefinition);//subtype list
-    var fieldInfo = mo.getFieldInfoByFieldName(layerDefinition.fields, fieldName);
-    if(codedValueHash.subType && codedValueHash.subType.length > 0){
-      var subTypeValues = codedValueHash.subType;
-      for(var index in subTypeValues){
-        var stValue = subTypeValues[index].value;
-        //codedvalue list by subtypeid
-        codedValueHash[stValue] = mo._getCodedValueBySubTypeId(layerDefinition, fieldName, stValue, fieldInfo);
-      }
-    }
-    codedValueHash.all = mo._getAllCodedValue(layerDefinition, fieldInfo); //all codedvalue list
-
-    var codedValueList = [];
-    var resultList = [];
-    for(var key in attributesList){
-      var attrs = attributesList[key];
-      var fieldValue = attrs[fieldName];
-      var typeIdFieldValue;
-      if(typeIdField === fieldName){
-        codedValueList = codedValueHash.subType;
-      }else{
-        if(attrs.hasOwnProperty(typeIdField)){
-          typeIdFieldValue = attrs[typeIdField];
-          codedValueList = codedValueHash[typeIdFieldValue];
-        }else{
-          codedValueList = codedValueHash.all;
-        }
-      }
-
-      var result = mo._getDisplayValueFromCodedValues(fieldValue, codedValueList);
-      resultList.push(result);
-    }
-    return resultList;
-    */
-  };
-
-  //three states: code is not in hash, same code and diff label, same sode and label
-  mo._getUniquCodedValue = function(hash, key, value){
-    if(hash[key]){
-      if(value === hash[key]){
-      }else{
-        hash[key] = hash[key] + ', ' + value;
-      }
-    }else{
-      hash[key] = value;
-    }
-    return hash;
-  };
-
-  //get all codedValues by types&field.domains
-  mo._getAllCodedValue = function(layerDefinition, fieldInfo){
-    // var domain = fieldInfo.domain;
-    var fieldName = fieldInfo.name;
-    var codedValsHash = {}; //for Removing the duplicate value by code
-    var codedValues = null;
-    var ifFirstInherited = true;
-    //a field could has codedvalue in types even its domain in fields is null
-    // if(domain && domain.type === 'codedValue'){
-    //get codeValues in types
-    if(layerDefinition.typeIdField && layerDefinition.types && layerDefinition.types.length > 0){
-      array.map(layerDefinition.types, lang.hitch(this, function(item){
-        if(item.domains && item.domains[fieldName]){
-          var fieldDomainInfo = item.domains[fieldName];
-          if(fieldDomainInfo.type === 'inherited'){
-            if(ifFirstInherited){
-              ifFirstInherited = false;
-              var valsArray = mo._getCodedValues(fieldInfo);
-              array.map(valsArray, lang.hitch(this, function(_item){
-                // codedValsHash[_item.value] = _item.label;
-                codedValsHash = mo._getUniquCodedValue(codedValsHash, _item.value, _item.label);
-              }));
-            }
-          }else{
-            if(fieldDomainInfo.codedValues && fieldDomainInfo.codedValues.length > 0){
-              array.map(fieldDomainInfo.codedValues, lang.hitch(this, function(_item){
-                // codedValsHash[_item.code] = _item.name;
-                codedValsHash = mo._getUniquCodedValue(codedValsHash, _item.code, _item.name);
-              }));
-            }
-          }
-        }
-      }));
-      if(!codedValues){//types array does not has this key.(maybe it's not the subtype field)
-        codedValues = mo._getCodedValues(fieldInfo);
-      }
-    }else{ //get codeValues in fields domain
-      return this._getCodedValues(fieldInfo);
-    }
-    var codedValuesArray = [];
-    var isNumberField = mo.isNumberField(fieldInfo.type);
-    for(var key in codedValsHash){
-      var newKey = isNumberField ? parseInt(key, 10) : key;
-      codedValuesArray.push({
-        value: newKey,
-        label: codedValsHash[key]
-      });
-    }
-    // }
-    if(codedValuesArray.length > 0){
-      codedValues = codedValuesArray;
-    }
-    return codedValues;
-  };
-
-  //get all codedValues by types&field.domains
-  mo._getAllCodedValueNew = function(layerDefinition, fieldInfo){
-    // var domain = fieldInfo.domain;
-    var fieldName = fieldInfo.name;
-    var codedValsHash = {}; //for Removing the duplicate value by code
-    var codedValues = null;
-    var ifFirstInherited = true;
-    //a field could has codedvalue in types even its domain in fields is null
-    // if(domain && domain.type === 'codedValue'){
-    //get codeValues in types
-    if(layerDefinition.subtypeField && layerDefinition.subtypes && layerDefinition.subtypes.length > 0){
-      array.map(layerDefinition.subtypes, lang.hitch(this, function(item){
-        if(item.domains && item.domains[fieldName]){
-          var fieldDomainInfo = item.domains[fieldName];
-          if(fieldDomainInfo.type === 'inherited'){
-            if(ifFirstInherited){
-              ifFirstInherited = false;
-              var valsArray = mo._getCodedValues(fieldInfo);
-              array.map(valsArray, lang.hitch(this, function(_item){
-                // codedValsHash[_item.value] = _item.label;
-                codedValsHash = mo._getUniquCodedValue(codedValsHash, _item.value, _item.label);
-              }));
-            }
-          }else{
-            if(fieldDomainInfo.codedValues && fieldDomainInfo.codedValues.length > 0){
-              array.map(fieldDomainInfo.codedValues, lang.hitch(this, function(_item){
-                // codedValsHash[_item.code] = _item.name;
-                codedValsHash = mo._getUniquCodedValue(codedValsHash, _item.code, _item.name);
-              }));
-            }
-          }
-        }
-      }));
-      if(!codedValues){//types array does not has this key.(maybe it's not the subtype field)
-        codedValues = mo._getCodedValues(fieldInfo);
-      }
-    }else{ //get codeValues in fields domain
-      return this._getCodedValues(fieldInfo);
-    }
-    var codedValuesArray = [];
-    var isNumberField = mo.isNumberField(fieldInfo.type);
-    for(var key in codedValsHash){
-      var newKey = isNumberField ? parseInt(key, 10) : key;
-      codedValuesArray.push({
-        value: newKey,
-        label: codedValsHash[key]
-      });
-    }
-    // }
-    if(codedValuesArray.length > 0){
-      codedValues = codedValuesArray;
-    }
-    return codedValues;
-  };
-
-  //get codedvalue list by sutType Id
-  //return [{value,label}]
-  mo._getCodedValueBySubTypeId = function(layerDefinition, fieldName, typeIdFieldValue, /*optional*/fieldInfo){
-    var type = 'typeIdField', arrayType = 'types';
-    if(layerDefinition.subtypeField && layerDefinition.subtypes && layerDefinition.subtypes.length > 0){
-      type = 'subtypeField';
-      arrayType = 'subtypes';
-    }
-
-    var codedValues = null ;
-    fieldInfo = fieldInfo ? fieldInfo : mo.getFieldInfoByFieldName(layerDefinition.fields, fieldName);
-    if(layerDefinition[type] && layerDefinition[arrayType] && layerDefinition[arrayType].length > 0){
-      array.map(layerDefinition[arrayType], lang.hitch(this, function(item){
-        if(item.id === typeIdFieldValue){
-          if(fieldName === layerDefinition[type]){//subtype field---in fact: render field
-            codedValues = [{
-              value: item.id,
-              label: item.name
-            }];
-            return true;
-          }
-          else if(item.domains && item.domains[fieldName]){//other fields
-            var fieldDomainInfo = item.domains[fieldName];
-            if(fieldDomainInfo.type === 'inherited'){
-              codedValues = mo._getCodedValues(fieldInfo);
-            }else{
-              if(fieldDomainInfo.codedValues && fieldDomainInfo.codedValues.length > 0){
-                codedValues = array.map(fieldDomainInfo.codedValues, lang.hitch(this, function(_item){
-                  return {
-                    value: _item.code,
-                    label: _item.name
-                  };
-                }));
-              }
-            }
-          }
-          //undefined in domains, when field is subtype field or some error data like#13631.
-          else if(item.domains){
-            codedValues = mo._getCodedValues(fieldInfo);
-          }
-        }
-      }));
-      if(!codedValues){//types array does not has this key.(maybe it's not the subtype field)
-        codedValues = mo._getCodedValues(fieldInfo);
-      }
-    }else{
-      codedValues = mo._getCodedValues(fieldInfo); //if the field isn't in types array but has its own domain codedvalue
-    }
-    return codedValues;
-  };
-
-  //get codedvalue list, return all or some by subtypeId from a feature attributes
-  //attributes:feature's attributes or a obj of same format(it may has a subtype field or not).
-  //return [{value,label}], return null means no subtypes or no coded value field
-  mo.getCodedValueListForCodedValueOrSubTypes = function(layerDefinition, fieldName, attributes){
-    mo._deleteSubtypePropertiesTemp(layerDefinition);
-    var codedValues = null ;
-    var fieldInfo = mo.getFieldInfoByFieldName(layerDefinition.fields, fieldName);
-
-    var typeIdFieldValue, subtypeFieldValue;
-    if(attributes){
-      typeIdFieldValue = attributes[layerDefinition.typeIdField]; //it can be 0(number)
-      subtypeFieldValue = attributes[layerDefinition.subtypeField]; //it can be 0(number)
-    }
-
-    if(layerDefinition.subtypeField && layerDefinition.subtypes && layerDefinition.subtypes.length > 0){
-      //current field is subtype field
-      if(fieldName === layerDefinition.subtypeField){
-        codedValues = mo._getSubTypes(layerDefinition); //get subtyps list
-        if(subtypeFieldValue !== undefined){
-          var _valueInfo = mo._getDisplayValueFromCodedValues(subtypeFieldValue, codedValues);
-          codedValues = [{
-            value:_valueInfo.value,
-            label:_valueInfo.displayValue
-          }];
-        }
-      }else{
-        if(subtypeFieldValue === undefined){//return all domains from subtype list
-          codedValues = mo._getAllCodedValueNew(layerDefinition, fieldInfo);
-        }else{//return one domain from current subtype value
-          //get codedvalues list, from layerDefinition.subtypes..domain.
-          codedValues = mo._getCodedValueBySubTypeId(layerDefinition, fieldName, subtypeFieldValue, fieldInfo);
-        }
-      }
-      //update labels from render(if render current field)
-      if(fieldName === layerDefinition.typeIdField){ //update labels from render
-        codedValues = mo._updateCodedValueListFromRender(layerDefinition, codedValues);
-      }
-      return codedValues;
-    }else{ //no subtype field
-      // if(layerDefinition.subtypeField === ''){ //no subtype field
-      layerDefinition.subtypeField = '';
-      layerDefinition.subtypes = [];
-      //continue old logic.
-    }
-
-    //current fieldName is typeIdField
-    if(layerDefinition.typeIdField && layerDefinition.typeIdField.toUpperCase() === fieldName.toUpperCase()){
-      codedValues = mo._getRenderTypes(layerDefinition);
-      if(attributes && typeIdFieldValue !== undefined && typeIdFieldValue !== null){ //attributes has subtype field, return one data
-        var valueInfo = mo._getDisplayValueFromCodedValues(typeIdFieldValue, codedValues);
-        codedValues = [{
-          value:valueInfo.value,
-          label:valueInfo.displayValue
-        }];
-      }
-    }else{ //other fields
-      if(attributes && typeIdFieldValue !== undefined && typeIdFieldValue !== null){ //attributes has subtype field, so filter it
-        codedValues = mo._getCodedValueBySubTypeId(layerDefinition, fieldName, typeIdFieldValue, fieldInfo);
-      }else{
-        codedValues = mo._getAllCodedValue(layerDefinition, fieldInfo);
-      }
-    }
-    if(fieldName === layerDefinition.typeIdField){ //update labels from render
-      codedValues = mo._updateCodedValueListFromRender(layerDefinition, codedValues);
-    }
-    return codedValues;
-  };
-
-  //check if current field is subtype field, and which field is subtype field from layerDefiniton
-  mo._verifyIfFieldIsSubtypeField = function(layerDefinition, fieldInfo){
-    var info = {
-      isSubtypeField: false, // if current field is subtype field.
-      subtypeField: '' //the name of the subtype field.
-    };
-    //version:10.5+, it's subtype 's fieldName if layer has a subtype field, not undefined or ''
-    //subtypeField is a layer property that is set to the name of the subtype field.
-    //If the layer does not have subtypes, it is set to empty string ("subtypeField": "").
-    if(layerDefinition.subtypeField){
-      info = {
-        isSubtypeField: layerDefinition.subtypeField === fieldInfo.name,
-        subtypeField: layerDefinition.subtypeField
-      };
-      return info;
-    }
-
-    //old versions need fieldInfo to verify
-    var isRenderBySubtype = false;
-    var subtypeFieldTypes = [
-      'esriFieldTypeSmallInteger',
-      'esriFieldTypeInteger'
-    ];
-    //1. render by current field, it maybe the subtype field.
-    //2. checkout types.domain to verify
-    if(subtypeFieldTypes.indexOf(fieldInfo.type) && layerDefinition.typeIdField === fieldInfo.name &&
-      (layerDefinition.types && layerDefinition.types.length > 0)){
-      var domains = layerDefinition.types[0].domains;
-      //when layer has error data like: domain={}, then can't tell if it's subtype field.
-      if(domains[fieldInfo.name] === undefined){
-        info = {
-          isSubtypeField: true,
-          subtypeField: fieldInfo.name
-        };
-      }else{ // current field is existed in domains, so it can't be subtype field
-        info.isSubtypeField = false;
-      }
-    }
-    return isRenderBySubtype;
-  };
-
-  //no render https://sampleserver6.arcgisonline.com/arcgis/rest/services/911CallsHotspot/MapServer/2?f=json
-  mo._getRenderValueLabelsForUnique = function(layerDefinition){
-    var valueLabels = null;
-    if(layerDefinition.drawingInfo && layerDefinition.drawingInfo.renderer &&
-      layerDefinition.drawingInfo.renderer.type === 'uniqueValue'){
-      valueLabels = {};
-      var uniqueValueInfos = layerDefinition.drawingInfo.renderer.uniqueValueInfos;
-      for(var key = 0; key < uniqueValueInfos.length; key ++){
-        var info = uniqueValueInfos[key];
-        valueLabels[info.value] = info.label;
-      }
-    }
-    return valueLabels;
-  };
-
-  //update codedValues from render labels(call this function when fieldnName = typeIdField)
-  mo._updateCodedValueListFromRender = function(layerDefinition, codedValues){ //[{value,label}]
-    var renderCodedValues = mo._getRenderValueLabelsForUnique(layerDefinition);
-    if(renderCodedValues && codedValues){
-      for(var key = 0; key < codedValues.length; key ++){
-        var codeValue = codedValues[key];
-        if(renderCodedValues[codeValue.value]){
-          codeValue.label = renderCodedValues[codeValue.value];
-        }
-      }
-    }
-    return codedValues;
-  };
-
   //return {fieldName,label,tooltip,visible,format,stringFieldOption}
   mo.getDefaultPortalFieldInfo = function(serviceFieldInfo){
     //serviceFieldInfo: {name,alias,type,...}
@@ -3648,40 +2656,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
     return item;
   };
 
-  mo.getDefaultPopupInfo = function(object, title, fieldNames) {
-    // return popupInfo with all fieldInfos if the fieldName is null;
-    var popupInfo = null;
-    if(object && object.fields) {
-      popupInfo = {
-        title: title,
-        fieldInfos:[],
-        description: null,
-        showAttachments: true,
-        mediaInfos: []
-      };
-      array.forEach(object.fields, function(field){
-        var isValidField = false;
-        if(fieldNames) {
-          var isValidFieldName = array.some(fieldNames, lang.hitch(this, function(fieldName) {
-            return fieldName && (field.name.toLowerCase() === fieldName.toLowerCase());
-          }));
-          if(isValidFieldName) {
-            isValidField = true;
-          }
-        } else {
-          isValidField = true;
-        }
-        if(isValidField) {
-          var fieldInfo = this.getDefaultPortalFieldInfo(field);
-          fieldInfo.visible = true;
-          fieldInfo.isEditable = field.editable;
-          popupInfo.fieldInfos.push(fieldInfo);
-        }
-      }, this);
-    }
-    return popupInfo;
-  };
-
   mo._tryLocaleNumber = function(value) {
     var result = mo.localizeNumber(value);
     if (result === null || result === undefined) {
@@ -3698,7 +2672,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
     return result;
   };
 
-  //fieldInfos: layerDefinition.fields
   mo.getFieldInfoByFieldName = function(fieldInfos, fieldName) {
     var fieldInfo = null;
     if (fieldInfos && fieldInfos.length > 0) {
@@ -3712,61 +2685,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
       }));
     }
     return fieldInfo;
-  };
-
-  //fieldInfos: popupFieldsInfo
-  mo.getDateFieldFormatByFieldName = function(fieldInfos, fieldName) {
-    if (fieldInfos && fieldInfos.length > 0) {
-      for(var key = 0; key < fieldInfos.length; key++){
-        var item = fieldInfos[key];
-        if (item.fieldName === fieldName) {
-          if(item.format && item.format.dateFormat){
-            return item.format.dateFormat;
-          }else{
-            return '';
-          }
-        }
-      }
-      return '';
-    }
-    return '';
-  };
-
-  //layerField: https://developers.arcgis.com/web-map-specification/objects/field/
-  //popupField: https://developers.arcgis.com/web-map-specification/objects/fieldInfo/
-  mo.completePopupFieldFromLayerField = function(layerFields, popupFields){
-    for(var layerKey in layerFields){
-      var layerFieldName = layerFields[layerKey].name;
-      var isExist = false;
-      for(var popupKey in popupFields){
-        if(popupFields[popupKey].fieldName === layerFieldName){
-          isExist = true;
-          break;
-        }
-      }
-      if(!isExist){
-        var _fieldInfo = mo.getPopupFieldFromLayerField(layerFields[layerKey]);
-        popupFields.push(_fieldInfo);
-      }
-    }
-    return popupFields;
-  };
-
-  mo.getPopupFieldFromLayerField = function(layerField){
-    var _fieldInfo = {
-      //pro publish (no edit by map viewer in some old versions)
-      'fieldName': layerField.name,
-      'isEditable': layerField.editable,
-      'label': layerField.alias,
-      'visible': layerField.visible ? layerField.visible : false,
-
-      //other ways(include attrs above)
-      //stringFieldOption is only for string field: textbox, textarea, richtext
-      'stringFieldOption': layerField.type === 'esriFieldTypeString' ? 'textbox': null,
-      'tooltips': '',
-      'domain': layerField.domain ? layerField.domain : null
-    };
-    return _fieldInfo;
   };
 
   mo.containsNonLatinCharacter = function(string) {
@@ -3948,18 +2866,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
     }
   };
 
-  mo.inMobileSize = function(){
-    var layoutBox = html.getMarginBox(document.body);
-    if (layoutBox.w <= window.jimuConfig.breakPoints[0] ||
-      layoutBox.h <= window.jimuConfig.breakPoints[0]) {
-      html.addClass(window.jimuConfig.layoutId, 'jimu-ismobile');
-      return true;
-    } else {
-      html.removeClass(window.jimuConfig.layoutId, 'jimu-ismobile');
-      return false;
-    }
-  };
-
   mo.getObjectIdField = function(layerDefinition){
     if(layerDefinition.objectIdField){
       return layerDefinition.objectIdField;
@@ -3978,16 +2884,10 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
   //if browser(such as Chrome50) have window.isSecureContext, and not in https origin, return true
   //for example: if true===isNendHttpsButNot(), MyLocateButton should be disabled
   mo.isNeedHttpsButNot = function() {
-    //copy from: https://devtopia.esri.com/WebGIS/arcgis-js-api/issues/6614
-    var hasGeolocation = navigator.geolocation;
-    var hasSecureContext = window.hasOwnProperty("isSecureContext");
-    var isSecureContext = (hasSecureContext && window.isSecureContext) ||
-      (!hasSecureContext && window.location.protocol === "https:");
-    if (!isSecureContext || !hasGeolocation) {
+    if (window.hasOwnProperty("isSecureContext") && !window.isSecureContext) {
       return true;
-    } else {
-      return false;
     }
+    return false;
   };
 
   /**
@@ -4088,18 +2988,14 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
   mo.featureAction = (function(){
     var result = {};
 
-    //options: {
-    //   extentFactor
-    // }
+    //options: {extentFactor}
     result.zoomTo = function(map, arr, /*optional*/ options) {
       if(!options){
         options = {};
       }
-      /*
       if(!options.hasOwnProperty('extentFactor')){
         options.extentFactor = 1.2;
       }
-      */
       if (map && arr && arr.length > 0) {
         var isGeometries = array.every(arr, function(a) {
           return a && a.spatialReference && a.type;
@@ -4116,7 +3012,14 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
             });
           }
 
-          mo.zoomToFeatureSet(map, {features: arr}, options.extentFactor);
+          if (arr.length === 1 && arr[0].type === 'point') {
+            var levelOrFactor = 15;
+            levelOrFactor = map.getMaxZoom() > -1 ? map.getMaxZoom() : 0.1;
+            map.centerAndZoom(arr[0].geometry, levelOrFactor);
+          } else {
+            var extent = graphicsUtils.graphicsExtent(arr);
+            map.setExtent(extent.expand(options.extentFactor));
+          }
         }
       }
     };
@@ -4244,497 +3147,6 @@ function(lang, array, html, has, config, ioQuery, query, nlt, Deferred, all, on,
 
     return result;
   }());
-
-  mo.isInConfigOrPreviewWindow = function(){
-    var b = false;
-    try{
-      b = !window.isBuilder && window.parent && window.parent !== window &&
-        window.parent.isBuilder;
-    }catch(e){
-      // console.log(e);
-      b = false;
-    }
-    return !!b;
-  };
-
-  //for cross-origin frame
-  mo.getAppHref = function(){
-    var href = "";
-    if (mo.isInConfigOrPreviewWindow()) {
-      href = window.parent.location.href;
-    } else {
-      href = window.location.href;
-    }
-    return href;
-  };
-
-  mo.getAppIdFromUrl = function() {
-    var isDeployedApp = true,
-      href = mo.getAppHref();// window.top.location.href;
-    if (href.indexOf("id=") !== -1 || href.indexOf("appid=") !== -1 ||
-      href.indexOf("apps") !== -1) {
-      isDeployedApp = false;
-    }
-
-    if (isDeployedApp === true) {
-      // deployed app use pathname as key
-      return href;
-    } else {
-      // xt or integration use id of app as key
-      var urlParams = this.urlToObject(window.location.href);
-      if (urlParams.query) {
-        if (urlParams.query.id || urlParams.query.appid) {
-          return urlParams.query.id || urlParams.query.appid;
-        }
-      }
-
-      // if there is no id/appid in url
-      if (window.appInfo) {
-        if (window.appInfo.id) {
-          //id in appInfo
-          return window.appInfo.id;
-        } else if (window.appInfo.appPath) {
-          //parse id from appPath
-          var list = window.appInfo.appPath.split("/");
-          if (list.length && list.length > 2) {
-            return list[list.length - 2];
-          }
-        } else {
-          console.error("CAN NOT getAppIdFromUrl");
-        }
-      }
-    }
-  };
-
-  mo.getEditorContentHeight = function(content, dom, domParam) {
-    var def = new Deferred();
-    this._content = content;
-    this._dom = dom;
-    this._domParam = domParam;
-    var timeoutHandler = setTimeout(lang.hitch(this, function() {
-      clearTimeout(timeoutHandler);
-      timeoutHandler = null;
-
-      var h = 0;
-      var scrollerWidth = 20;
-      var polyfill = 8;
-      var contentWidth = this._domParam.contentWidth;//defaultWidth - marginLeftRight;
-      try {
-        var fakeContent = document.createElement('div');
-        fakeContent.setAttribute('id', 'fakeContent');
-        html.setStyle(fakeContent, "background-size", "contain");
-        fakeContent.innerHTML = this._content;
-        this._dom.appendChild(fakeContent);
-        if (fakeContent) {
-          //to adjust images
-          var contentImgs = query('img', fakeContent);
-          if (contentImgs && contentImgs.length) {
-            contentImgs.style({
-              maxWidth: (contentWidth - scrollerWidth) + 'px'
-            });
-          }
-
-          html.setStyle(fakeContent, "position", "absolute");
-          html.setStyle(fakeContent, "width", contentWidth + "px");
-          html.setStyle(fakeContent, "left", "-99999px");
-          html.setStyle(fakeContent, "top", "-99999px");
-          html.setStyle(fakeContent, "visibility", "hidden");
-
-          var box = html.getContentBox(fakeContent);
-          if (box.h) {
-            //content height
-            h = box.h;
-            //+ content margin top + content margin bottom + polyfill
-            h += (this._domParam.contentMarginTop + this._domParam.footerHeight + polyfill);
-          }
-          //TODO delete
-          // if (h) {
-          //   this._dom.removeChild(fakeContent);
-          // }
-        }
-      } catch (err) {
-        console.error("can't getEditorContentHeight" + err);
-        h = 200;
-      }
-
-      def.resolve(h);
-    }), 1500);
-    return def;
-  };
-
-  mo.getBase64Data = function(url) {
-    var def = new Deferred();
-    if (url && url.startWith('data:image')) {
-      def.resolve(url);
-    } else {
-      try {
-        esriRequest({
-          url: url,
-          handleAs: 'arraybuffer'
-        }).then(function(response){
-          var reader = new FileReader();
-          reader.onloadend = function () {
-            def.resolve(reader.result);
-          };
-          reader.onerror = function () {
-            def.resolve(null);
-          };
-          reader.readAsDataURL(new Blob([response], {
-            type: 'image/png'
-          }));
-        }, function(){
-          def.resolve(null);
-        });
-      }catch(err) {
-        console.warn(err);
-        def.resolve(null);
-      }
-    }
-    return def;
-  };
-
-  mo.getEditorTextColor = function(colorRecordID, forceAttr) {
-    return {
-      name: "dijit.editor.plugins.EditorTextColor",
-      custom: {
-        recordUID: mo.getColorRecordName(colorRecordID),
-        forceAttr: forceAttr
-      }
-    };
-  };
-  mo.getEditorBackgroundColor = function(colorRecordID) {
-    return {
-      name: "dijit.editor.plugins.EditorBackgroundColor",
-      custom: {
-        recordUID: mo.getColorRecordName(colorRecordID)
-      }
-    };
-  };
-  mo.getColorRecordName = function(id){
-    return "wab_cr_" + (id || "");
-  };
-  mo.b64toBlob = function(b64Data, contentType, sliceSize) {
-    contentType = contentType || '';
-    sliceSize = sliceSize || 512;
-    var byteCharacters = window.atob(b64Data.replace(/^data:image\/(png|jpg|jpeg|gif);base64,/, ''));
-    var byteArrays = [];
-    for (var offset = 0; offset < byteCharacters.length; offset += sliceSize) {
-      var slice = byteCharacters.slice(offset, offset + sliceSize);
-      var byteNumbers = new Array(slice.length);
-      for (var i = 0; i < slice.length; i++) {
-        byteNumbers[i] = slice.charCodeAt(i);
-      }
-      var byteArray = new Uint8Array(byteNumbers);
-      byteArrays.push(byteArray);
-    }
-    var blob = new Blob(byteArrays, {
-      type: contentType
-    });
-    return blob;
-  };
-  mo.subtractionArray = function(arr1, arr2) {
-    //return arr1 = arr1 - arr2
-    for (var i = arr1.length - 1; i >= 0; i--) {
-      var a = arr1[i];
-      for (var j = arr2.length - 1; j >= 0; j--) {
-        var b = arr2[j];
-        if (a === b) {
-          arr1.splice(i, 1);
-          arr2.splice(j, 1);
-          break;
-        }
-      }
-    }
-    return arr1;
-  };
-  mo.resourcesUrlToBlob = function(resourcesUrl) {
-    return esriRequest({
-      url: resourcesUrl,
-      handleAs: "blob"
-    });
-  };
-  mo.processItemResourceOfAppConfig = function(appConfig, cb){
-    //Traverse appConfig and get all the data that matches the cb.test,
-    //along with its direct parent object, passed to the callback function(cb.func)
-
-    //cb:{test,func}
-    //args:all parameters that need to be passed to the callback function(cb.func)
-    //
-    //Return: if cb.func return a promise(defs.length > 0),this function will return a deferred
-    //        else return {appConfig,normalReturnValues}
-    var normalReturnValues = [];
-    var defs = [];
-    var callbackReturn;
-
-    function _formatPendingObj(pendingObj){
-      var obj = pendingObj.obj;
-      var key = pendingObj.key;
-      var formatObj = {
-        obj:obj,
-        key:key
-      };
-      if(typeof pendingObj.i === 'number'){
-        formatObj.i = pendingObj.i;
-        formatObj.value = obj[key][pendingObj.i];
-      }else{
-        formatObj.value = obj[key];
-      }
-      return formatObj;
-    }
-
-    function processObject(obj) {
-      for (var key in obj) {
-        if (typeof obj[key] === 'object') {
-          if (Array.isArray(obj[key])) {
-            processArray(obj, key);
-          } else {
-            processObject(obj[key]);
-          }
-        } else if (typeof obj[key] === 'string') {
-          processString(obj, key);
-        }
-      }
-    }
-
-    function processString(obj, key, i){
-      if(typeof i === 'number'){
-        if (cb.test(obj[key][i])) {
-          callbackReturn = cb.func(_formatPendingObj({
-            obj: obj,
-            key: key,
-            i:i
-          }));
-          if(typeof callbackReturn.then === 'function'){
-            defs.push(callbackReturn);
-          }else{
-            normalReturnValues.push(callbackReturn);
-          }
-        }
-      }else{
-        if (cb.test(obj[key])) {
-          callbackReturn = cb.func(_formatPendingObj({
-            obj: obj,
-            key: key
-          }));
-          if(typeof callbackReturn.then === 'function'){
-            defs.push(callbackReturn);
-          }else{
-            normalReturnValues.push(callbackReturn);
-          }
-        }
-      }
-    }
-
-    function processArray(obj, key){
-      for (var i = 0; i < obj[key].length; i++) {
-        if (typeof obj[key][i] === 'string') {
-          processString(obj, key, i);
-        }else if (typeof obj[key][i] === 'object') {
-          processObject(obj[key][i]);
-        }
-      }
-    }
-
-    processObject(appConfig);
-
-    if(defs.length > 0){
-      return all(defs).then(function(result){
-        if(normalReturnValues.length > 0){
-          result = result.concat(normalReturnValues);
-        }
-        return {
-          appConfig: appConfig,
-          result: result
-        };
-      });
-    }else{
-      return {
-        appConfig: appConfig,
-        result: normalReturnValues
-      };
-    }
-  };
-  mo.isEsriDomain = function(url){
-    return /^https?:\/\/(?:[\w\-\_]+\.)+(?:esri|arcgis)\.com/.test(url);
-  };
-  mo.uniqueArray = function(array) {
-    var n = [];
-    for (var i = 0; i < array.length; i++) {
-      if (n.indexOf(array[i]) === -1) {
-        n.push(array[i]);
-      }
-    }
-    return n;
-  };
-
-  mo.isNotEmptyObject = function(obj, includeArray) {
-    if(!!includeArray){
-      return mo.isObject(obj) && Object.keys(obj).length > 0 && Array.isArray(obj);
-    }else{
-      return mo.isObject(obj) && Object.keys(obj).length > 0;
-    }
-  };
-  mo.getMinOfArray = function(array) {
-    return Number(Math.min.apply(Math, array));
-  };
-  mo.getDataSchemaFromLayerDefinition = function(layerDefinition){
-    var oIdField = layerDefinition.fields.filter(function(f){
-      return f.type === 'esriFieldTypeOID';
-    });
-    if(oIdField.length > 0){
-      oIdField = oIdField[0];
-    }else{
-      oIdField = null;
-    }
-
-    return {
-      geometryType: layerDefinition.geometryType,
-      fields: layerDefinition.fields,
-      displayField: layerDefinition.displayField,
-      objectIdField: oIdField,
-      typeIdField: layerDefinition.typeIdField
-    };
-  };
-
-  mo.isValidPointGeometry = function(geometry) {
-    return geometry && geometry.type === 'point' && mo.isTrueOrZero(geometry.x) &&
-      mo.isTrueOrZero(geometry.y);
-  };
-
-  // Incorrect function name, keep it here for back compatibility.
-  mo.isVaildPointGeometry = mo.isValidPointGeometry;
-
-  mo.isNumberOrNumberString = function(value) {
-    return /^-?[1-9]\d*$/.test(value) ||
-      /^-?([1-9]\d*\.\d*|0\.\d*[1-9]\d*|0?\.0+|0)$/.test(value);
-  };
-
-  //0.1234 --> 12.34% or %12.34(locale=ar or tr)
-  mo.convertNumberToPercentage = function(number, /*optional*/ decimalDigits) {
-    if (!mo.isNumberOrNumberString(number)) {
-      return number;
-    }
-    if (typeof decimalDigits === 'undefined') {
-      decimalDigits = 2;
-    }
-    var locale = config.locale;
-    var shouldPercentSignLeft = locale === 'ar' || locale === 'tr';
-    number = Number(number);
-    var isNegative = false;
-    if (number < 0) {
-      isNegative = true;
-      number = Math.abs(number);
-    }
-    number = number * 100;
-    number = number.toFixed(decimalDigits);
-    number = mo.localizeNumber(number);
-
-    if (!shouldPercentSignLeft) {
-      number += '%';
-    } else {
-      number = '%' + number;
-    }
-
-    if (isNegative) {
-      number = '-' + number;
-    }
-
-    return number;
-  };
-
-  mo.getClientFeaturesFromMap = function(map, featureLayer, useSelection, filterByExtent) {
-    var features = [];
-    var isSelectedFeatures = false;
-
-    if(!featureLayer){
-      return;
-    }
-
-    if (useSelection) {
-      if (featureLayer.getSelectedFeatures().length > 0) {
-        features = featureLayer.getSelectedFeatures();
-        isSelectedFeatures = true;
-      } else {
-        features = featureLayer.graphics;
-      }
-    } else {
-      features = featureLayer.graphics;
-    }
-
-    if (filterByExtent) {
-      features = mo.filterFeaturesByExtent(map.extent, features);
-    }
-
-    if (features && features.length > 0) {
-      var objectIdField = mo.getObjectIdField(featureLayer);
-
-      if (objectIdField) {
-        var firstFeature = features[0];
-        if (firstFeature && firstFeature.attributes && firstFeature.attributes.hasOwnProperty(objectIdField)) {
-          features.sort(function(a, b) {
-            if (!a.attributes) {
-              a.attributes = {};
-            }
-            if (!b.attributes) {
-              b.attributes = {};
-            }
-            var objectId1 = a.attributes[objectIdField];
-            var objectId2 = b.attributes[objectIdField];
-            if (objectId1 < objectId2) {
-              return -1;
-            } else if (objectId1 > objectId2) {
-              return 1;
-            } else {
-              return 0;
-            }
-          });
-        }
-      }
-    }
-
-    features.isSelectedFeatures = isSelectedFeatures;
-
-    return features;
-  };
-
-  mo.filterFeaturesByExtent = function(extent, features) {
-    var extents = extent.normalize();
-
-    features = array.filter(features, lang.hitch(this, function(feature) {
-      try {
-        if (feature.geometry) {
-          var isPoint = feature.geometry.type === 'point' || feature.geometry === 'multipoint';
-
-          return array.some(extents, lang.hitch(this, function(extent) {
-            if (isPoint) {
-              return extent.contains(feature.geometry);
-            } else {
-              return geometryEngine.intersects(extent, feature.geometry);
-            }
-          }));
-        }
-      } catch (e) {
-        console.error(e);
-      }
-      return false;
-    }));
-
-    return features;
-  };
-
-  mo.upperCaseString = function(temp) {
-    if (temp && typeof temp === 'string') {
-      return temp.toUpperCase();
-    }
-    return temp;
-  };
-
-  mo.lowerCaseString = function(temp) {
-    if (temp && typeof temp === 'string') {
-      return temp.toLowerCase();
-    }
-    return temp;
-  };
 
   return mo;
 });

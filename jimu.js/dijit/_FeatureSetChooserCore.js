@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,12 +29,10 @@ define([
   'esri/graphic',
   'esri/tasks/query',
   'esri/tasks/QueryTask',
-  'esri/layers/FeatureLayer',
-  'esri/symbols/jsonUtils',
-  'esri/geometry/geometryEngine'
+  'esri/layers/FeatureLayer'
 ],
 function(on, sniff, Evented, Deferred, lang, array, declare, jimuUtils, symbolUtils, SelectionManager,
-  LayerInfos, Graphic, EsriQuery, QueryTask, FeatureLayer, symbolJsonUtils, geometryEngine) {
+  LayerInfos, Graphic, EsriQuery, QueryTask, FeatureLayer) {
 
   return declare([Evented], {
     baseClass: 'jimu-featureset-chooser-core',
@@ -92,17 +90,7 @@ function(on, sniff, Evented, Deferred, lang, array, declare, jimuUtils, symbolUt
       } else if (geometryType === 'esriGeometryPolyline') {
         middleLayerSelectionSymbol = symbolUtils.getDefaultLineSymbol();
       } else if (geometryType === 'esriGeometryPolygon') {
-        middleLayerSelectionSymbol = symbolJsonUtils.fromJson({
-          "style": "esriSFSSolid",
-          "color": [79, 129, 189, 77],
-          "type": "esriSFS",
-          "outline": {
-            "style": "esriSLSSolid",
-            "color": [54, 93, 141, 255],
-            "width": 1.5,
-            "type": "esriSLS"
-          }
-        });
+        middleLayerSelectionSymbol = symbolUtils.getDefaultFillSymbol();
       }
       this._middleFeatureLayer.setSelectionSymbol(middleLayerSelectionSymbol);
 
@@ -118,28 +106,6 @@ function(on, sniff, Evented, Deferred, lang, array, declare, jimuUtils, symbolUt
       //     this.drawBox.disable();
       //   }
       // })));
-    },
-
-    //private method
-    hideMiddleFeatureLayer: function(){
-      if(this._middleFeatureLayer){
-        this._middleFeatureLayer.hide();
-        var displayLayer = this.selectionManager.getDisplayLayer(this._middleFeatureLayer.id);
-        if(displayLayer){
-          displayLayer.hide();
-        }
-      }
-    },
-
-    //private method
-    showMiddleFeatureLayer: function(){
-      if(this._middleFeatureLayer){
-        this._middleFeatureLayer.show();
-        var displayLayer = this.selectionManager.getDisplayLayer(this._middleFeatureLayer.id);
-        if(displayLayer){
-          displayLayer.show();
-        }
-      }
     },
 
     clear: function(shouldClearSelection){
@@ -238,7 +204,7 @@ function(on, sniff, Evented, Deferred, lang, array, declare, jimuUtils, symbolUt
         }
       }
 
-      this.emit('loading');
+      this._onLoading();
 
       this._getFeaturesByGeometry(g.geometry).then(lang.hitch(this, function(features){
         var layer = this.updateSelection ? this.featureLayer : this._middleFeatureLayer;
@@ -252,16 +218,7 @@ function(on, sniff, Evented, Deferred, lang, array, declare, jimuUtils, symbolUt
       }));
     },
 
-    _addTolerance: function(geometry) {
-      // Add tolorence of 10px based on current map scale, use fixed dpi 96
-      var resolution = this.map.getScale() * 2.54 / 9600; // meters of each pixel
-      return geometryEngine.buffer(geometry, 10 * resolution, 'meters');
-    },
-
     _getFeaturesByGeometry: function(geometry){
-      if (geometry.type === 'point') {
-        geometry = this._addTolerance(geometry);
-      }
       var def = new Deferred();
       var features = [];
       if(this.featureLayer.getMap()){
@@ -280,11 +237,6 @@ function(on, sniff, Evented, Deferred, lang, array, declare, jimuUtils, symbolUt
         queryParams.geometry = geometry;
         queryParams.outSpatialReference = this.map.spatialReference;
         queryParams.returnGeometry = true;
-        if(this.fullyWithin){
-          queryParams.spatialRelationship = EsriQuery.SPATIAL_REL_CONTAINS;
-        }else{
-          queryParams.spatialRelationship = EsriQuery.SPATIAL_REL_INTERSECTS;
-        }
         var where = this.featureLayer.getDefinitionExpression();
         if(!where){
           where = "1=1";

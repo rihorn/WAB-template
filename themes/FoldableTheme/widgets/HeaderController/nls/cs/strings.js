@@ -1,6 +1,6 @@
 define({
   "_widgetLabel": "Ovladač záhlaví",
-  "signin": "Přihlásit",
+  "signin": "Přihlásit se",
   "signout": "Odhlásit se",
   "about": "O aplikaci",
   "signInTo": "Přihlásit se do",

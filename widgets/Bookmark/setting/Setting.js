@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,145 +16,295 @@
 
 define([
   'dojo/_base/declare',
-  'jimu/BaseWidgetSetting',
   'dijit/_WidgetsInTemplateMixin',
   'dojo/_base/lang',
+  'dojo/_base/array',
+  'dojo/_base/html',
   'dojo/on',
-  '../utils',
-  './Layout',
-  './Sync',
-  //'libs/storejs/store',
-  'jimu/dijit/CheckBox'
+  'dojo/keys',
+  "dojo/query",
+  'jimu/BaseWidgetSetting',
+  'jimu/dijit/Popup',
+  'jimu/dijit/Message',
+  'jimu/utils',
+  './Edit',
+  'libs/storejs/store'
 ],
-  function (declare, BaseWidgetSetting, _WidgetsInTemplateMixin, lang, on,utils,
-    Layout, Sync,/* store,*/ CheckBox) {
-    return declare([BaseWidgetSetting, _WidgetsInTemplateMixin], {
-      baseClass: 'jimu-widget-bookmark-setting',
+function(declare, _WidgetsInTemplateMixin, lang, array, html, on, keys, query,
+  BaseWidgetSetting, Popup, Message, utils, Edit, store) {
+  //for now, this setting page suports 2D mark only
+  return declare([BaseWidgetSetting, _WidgetsInTemplateMixin], {
+    //these two properties is defined in the BaseWidget
+    baseClass: 'jimu-widget-bookmark-setting',
 
-      startup: function () {
-        this.inherited(arguments);
-        //utils.cleanNoticePopupRecord();//show NoticePopupRecord again
-        //1 _initLayout();
-        this.layout = new Layout({
-          nls: this.nls,
-          config: this.config
-        }, this.layoutContainer);
-        this.layout.startup();
+    //bookmarks: Object[]
+    //    all of the bookmarks, the format is the same as the config.json
+    bookmarks: [],
+    edit: null,
+    popup: null,
+    popupState: "", // ADD or EDIT
+    editIndex: null,
 
-        //2 _initEditableCheckBox();
-        if ("undefined" === typeof this.config.editable) {
-          this.config.editable = false;
-        }
-        this.isEditableCheckBox = new CheckBox({
-          label: this.nls.editable
-        }, this.isEditableNode);
-        this.isEditableCheckBox.startup();
-        this.own(on(this.isEditableCheckBox, 'change', lang.hitch(this, '_onEditableChange')));
+    startup: function(){
+      this.inherited(arguments);
+      this.setConfig(this.config);
+    },
 
-        this.isSaveLayersCheckBox = new CheckBox({
-          label: this.nls.savelayers,
-          checked: false
-        }, this.isSaveLayers);
-        this.isSaveLayersCheckBox.startup();
-
-        //3 _initSyncMode();
-        this.sync = new Sync({
-          nls: this.nls,
-          folderUrl: this.folderUrl,
-          appConfig: this.appConfig,
-          map: this.map,
-          config: this.config
-        }, this.syncContainer);
-        this.sync.startup();
-
-        //this.setSortableDisable();
-        //TODO ======================= for test only ===============================
-        //this.config = utils._testUpdateOldConfig();
-        //TODO ======================= for test only ===============================
-        this.setConfig(this.config);
-      },
-
-      _onEditableChange: function (editable) {
-        if (editable) {
-          this.isSaveLayersCheckBox.setStatus(true);//enable
-        } else {
-          this.isSaveLayersCheckBox.setValue(false);
-          this.isSaveLayersCheckBox.setStatus(false);//disable
-        }
-      },
-
-      setConfig: function (config) {
-        this.config = config;
-
-        this.updateConfigs();
-
-        this.layout.setConfig(this.config);
-        this.isEditableCheckBox.setValue(config.editable);
-        this.isSaveLayersCheckBox.setValue(config.isSaveLayerVisibility);
-
-        this._onEditableChange(config.editable);
-
-        this.sync.setConfig(this.config);
-      },
-      getConfig: function () {
-        var syncObj = this.sync.getConfig();
-        this.config.syncMode = syncObj.syncMode;
-
-        this.config.layout = this.layout.getConfig();
-
-        this.config.editable = this.isEditableCheckBox.checked;
-        this.config.isSaveLayerVisibility = this.isSaveLayersCheckBox.checked;
-
-        var bookmarks = syncObj.bookmarks;
-        this.config.bookmarks2D = utils.stringifyBookmarks(bookmarks);//stringify
-
-        this.completeUpdateConfig();
-
-        return this.config;
-      },
-      destroy: function () {
-        if (this.layout && this.layout.destroy) {
-          this.layout.destroy();
-        }
-        if (this.sync && this.layout.destroy) {
-          this.sync.destroy();
-        }
-        this.inherited(arguments);
-      },
-
-      updateConfigs: function () {
-        //check wheather update config
-        if (utils.isConfigBefore5_3(this.config)) {
-          utils.setDefaultConfigForUpdate(this.config);//set default config
-        }
-
-        utils.updateBookmarks(this.config.bookmarks2D);//update old configs
-      },
-      completeUpdateConfig: function () {
-        utils.completeUpdateConfig(this.config);//had complete updated
+    setConfig: function(config){
+      this.config = config;
+      this.bookmarks = this.config.bookmarks2D;
+      //add webmap bookmarks only if there is no entry in config
+      if(this.bookmarks.length === 0 && this.map.itemInfo &&
+          this.map.itemInfo.itemData && this.map.itemInfo.itemData.bookmarks){
+        array.forEach(this.map.itemInfo.itemData.bookmarks, function(bookmark){
+          bookmark.isInWebmap = true;
+          this.bookmarks.push(bookmark);
+        }, this);
       }
+      this.currentBookmark = null;
+      this.displayBookmarks();
+    },
 
-      /*,
-      //clean the localStore, just for the Editor(maybe for preview)
-      cleanStoreForEditor: function (isOk) {
-        if (isOk) {
-          //clear local store
-          var key = this._getKeysKey();
-          for (var p in store.getAll()) {
-            if (p.startWith(key)) {
-              store.remove(p);
-            }
+    getConfig: function (isOk) {
+      this.config.bookmarks2D = this.bookmarks;
+      if(isOk){
+        //clear local store
+        var key = this._getKeysKey();
+        for(var p in store.getAll()){
+          if(p.startWith(key)){
+            store.remove(p);
           }
         }
+      }
+      return this.config;
+    },
+
+    displayBookmarks: function() {
+      // summary:
+      //    remove all and then add
+      this._processDuplicateName(this.bookmarks);
+
+      this._clearBookmarksDiv();
+      this._createmarkItems();
+    },
+
+    _clearBookmarksDiv:function(){
+      //html.empty(this.bookmarkListNode);
+      var bookmarkItemDoms = query('.mark-item-div', this.domNode);
+      for (var i = 0; i < bookmarkItemDoms.length;i++){
+        html.destroy(bookmarkItemDoms[i]);
+      }
+    },
+
+    destroy: function(){
+      this.inherited(arguments);
+    },
+
+    _getKeysKey: function(){
+      // summary:
+      // we use className plus 2D/3D as the local store key
+      if(this.appConfig.map['3D']){
+        return this.name + '.3D';
+      }else{
+        return this.name + '.2D';
+      }
+    },
+
+    onAddBookmarkClick: function(){
+        this.popupState = "ADD";
+        this._openEdit(this.nls.addBookmark, {
+          name: '',
+          thumbnail: '',
+          extent: this.map.extent.toJson()
+        });
       },
-      _getKeysKey: function () {
-        // summary:
-        // we use className plus 2D/3D as the local store key
-        if (this.appConfig.map['3D']) {
-          return this.name + '.3D';
-        } else {
-          return this.name + '.2D';
+
+    getBookmarkByName: function(name){
+      var len = this.bookmarks.length;
+      for (var i = 0; i < len; i++) {
+        if (this.bookmarks[i].displayName === name) {
+          this.editIndex = i;
+          return this.bookmarks[i];
         }
-      }*/
-    });
+      }
+    },
+
+    _onEditClick: function(name){
+        this.getBookmarkByName(name);
+        var bookmark = this.bookmarks[this.editIndex];
+        this.popupState = "EDIT";
+        this._openEdit(this.nls.edit, bookmark);
+      },
+
+    _openEdit: function(title, bookmark){
+        this.edit = new Edit({
+          nls: this.nls,
+          folderUrl: this.folderUrl,
+          portalUrl : this.appConfig.map.portalUrl,
+          itemId: this.appConfig.map.itemId,
+          mapOptions: this.appConfig.map.mapOptions
+        });
+        this.edit.setConfig(bookmark || {});
+        this.popup = new Popup({
+          titleLabel: title,
+          autoHeight: true,
+          content: this.edit,
+          container: 'main-page',
+          width: 640,
+          buttons: [
+            {
+              label: this.nls.ok,
+              key:keys.ENTER,
+              disable: true,
+              onClick: lang.hitch(this, '_onEditOk')
+            }, {
+              label: this.nls.cancel,
+              classNames: ['jimu-btn-vacation'],
+              key:keys.ESCAPE
+            }
+          ],
+          onClose: lang.hitch(this, '_onEditClose')
+        });
+        html.addClass(this.popup.domNode, 'widget-setting-popup');
+        this.edit.startup();
+      },
+
+    _onEditOk: function() {
+        var bookmark = this.edit.getConfig();
+        var editResult = null;
+        if (!bookmark.name || !bookmark.extent) {
+          new Message({
+            message: this.nls.warning
+          });
+          return;
+        }
+        if (this.popupState === "ADD"){
+          this.bookmarks.push(bookmark);
+          this.displayBookmarks();
+          editResult = true;
+        }else if (this.popupState === "EDIT"){
+          this.bookmarks.splice(this.editIndex, 1, bookmark);
+          this.displayBookmarks();
+          editResult = true;
+        }
+
+        if (editResult){
+          this.popup.close();
+          this.popupState = "";
+          this.editIndex = null;
+          editResult = false;
+        }else{
+          var repeatnames = array.mark(editResult.repeatFields, lang.hitch(this, function(field) {
+            return field && field.name;
+          }));
+          new Message({
+            message: this.nls[editResult.errorCode] + repeatnames.toString()
+          });
+        }
+      },
+
+    _onEditClose: function() {
+      this.edit = null;
+      this.popup = null;
+    },
+
+    _createmarkItems: function() {
+      for(var i = 0;i < this.bookmarks.length; i++){
+        var markItem = this._createmarkItem(this.bookmarks[i]);
+        html.place(markItem, this.bookmarksDiv);
+      }
+    },
+
+    _createmarkItem: function(bookmark) {
+      var str = "<div class='mark-item-div jimu-float-leading jimu-leading-margin2'>" +
+        "<div class='mark-item-bg'>" +
+          "<img class='mark-item-thumbnail'>" +
+          "<div class='mark-item-delete-icon'></div>" +
+          "<div class='mark-item-detail-icon'></div>" +
+        "</div>" +
+        "<span class='mark-item-title'></span>" +
+      "</div>";
+      var markItem = html.toDom(str);
+      var markItemThumbnail = query('.mark-item-thumbnail', markItem)[0];
+      var markItemTitle = query('.mark-item-title', markItem)[0];
+      var markItemDeleteIcon = query('.mark-item-delete-icon', markItem)[0];
+      this.own(on(markItemDeleteIcon, 'click',
+        lang.hitch(this, this._onmarkItemDeleteClick, bookmark.displayName)));
+      var markItemEditIcon = query('.mark-item-detail-icon', markItem)[0];
+      this.own(on(markItemEditIcon, 'click',
+        lang.hitch(this, this._onmarkItemEditClick, bookmark.displayName)));
+      markItem.item = bookmark;
+      var thumbnail;
+
+      if(bookmark.thumbnail){
+        thumbnail = utils.processUrlInWidgetConfig(bookmark.thumbnail, this.folderUrl);
+      }else{
+        thumbnail = this.folderUrl + 'images/thumbnail_default.png';
+      }
+      html.setAttr(markItemThumbnail, 'src', thumbnail);
+      markItemTitle.innerHTML = utils.sanitizeHTML(bookmark.displayName);
+      html.setAttr(markItemTitle, 'title', bookmark.displayName);
+      return markItem;
+    },
+
+    _clearBasemarksDiv:function(){
+      var markItemDoms = query('.mark-item-div', this.domNode);
+      for (var i = 0; i < markItemDoms.length;i++){
+        html.destroy(markItemDoms[i]);
+      }
+    },
+
+    _onmarkItemEditClick:function(bookmarkName){
+      this._onEditClick(bookmarkName);
+    },
+
+    _onmarkItemDeleteClick:function(bookmarkName){
+      this.getBookmarkByName(bookmarkName);
+      if (this.editIndex !== null){
+        this.bookmarks.splice(this.editIndex, 1);
+      }
+      this.displayBookmarks();
+    },
+
+    _processDuplicateName: function(bookmarks) {
+      var bookmarkArray = [];
+      var nameHash = {};
+      array.forEach(bookmarks, function(bookmark) {
+        var nameStr = bookmark.name;
+
+        if (nameStr in nameHash) {
+          nameHash[nameStr]++;
+        } else {
+          nameHash[nameStr] = 0;
+        }
+
+        if (nameHash[nameStr] > 0) {
+          //suffix name(num) first
+          var tmpDisplayName = nameStr + "(" + nameHash[nameStr] + ")";//like name(1)
+          if (tmpDisplayName in nameHash) {
+            nameHash[tmpDisplayName]++;
+            nameHash[nameStr]++;
+          } else {
+            nameHash[tmpDisplayName] = 0;
+          }
+
+          if (nameHash[tmpDisplayName] > 0) {
+            //type-in like "name(1)", turn to "name(2)"
+            bookmark.displayName = nameStr + "(" + nameHash[nameStr] + ")";
+          } else {
+            //type-in like "name", turn to "name(num)"
+            bookmark.displayName = tmpDisplayName;
+          }
+        } else {
+          //no duplicateName
+          bookmark.displayName = nameStr;
+        }
+
+        bookmarkArray.push(bookmark);
+      }, this);
+
+      bookmarks = bookmarkArray;
+    }
+
   });
+});

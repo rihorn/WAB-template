@@ -2,35 +2,25 @@
   "theme": {
     "name": "FoldableTheme",
     "styles": [
-      "yellow",
       "default",
-      "black",
       "blue",
+      "black",
+      "purple",
       "cyan",
       "green",
-      "purple",
-      "red"
+      "red",
+      "yellow"
     ],
-    "version": "2.10",
-    "sharedTheme": {
-      "isPortalSupport": true,
-      "useHeader": false,
-      "useLogo": false
-    },
-    "customStyles": {
-      "mainBackgroundColor": "#336699"
-    }
+    "version": "2.1"
   },
   "portalUrl": "http://kygeonet.maps.arcgis.com",
   "appId": "",
-  "authorizedCrossOriginDomains": [
-    "kygeonet.ky.gov"
-  ],
-  "title": "Template",
-  "subtitle": "with Web AppBuilder for ArcGIS",
-  "keepAppState": true,
-  "logo": "images/logo.png",
-  "geometryService": "https://utility.arcgisonline.com/arcgis/rest/services/Geometry/GeometryServer",
+  "authorizedCrossOriginDomains": [],
+  "title": "Kentucky's Hunting and Fishing Sites",
+  "subtitle": "",
+  "keepAppState": false,
+  "logo": "images/KyHuntFishHeader.png",
+  "geometryService": "http://utility.arcgisonline.com/arcgis/rest/services/Geometry/GeometryServer",
   "links": [],
   "widgetOnScreen": {
     "widgets": [
@@ -40,12 +30,14 @@
           "left": 0,
           "top": 0,
           "right": 0,
-          "height": 40,
+          "height": 60,
           "relativeTo": "browser"
         },
-        "version": "2.10",
+        "version": "2.1",
         "id": "themes_FoldableTheme_widgets_HeaderController_Widget_1",
-        "name": "HeaderController"
+        "icon": "themes/FoldableTheme/widgets/HeaderController/images/icon.png?wab_dv=2.1",
+        "name": "HeaderController",
+        "label": "Header Controller"
       },
       {
         "uri": "widgets/Scalebar/Widget",
@@ -54,9 +46,11 @@
           "bottom": 25,
           "relativeTo": "map"
         },
-        "version": "2.10",
+        "version": "2.1",
         "id": "widgets_Scalebar_Widget_2",
-        "name": "Scalebar"
+        "icon": "widgets/Scalebar/images/icon.png?wab_dv=2.1",
+        "name": "Scalebar",
+        "label": "Scalebar"
       },
       {
         "uri": "widgets/Search/Widget",
@@ -65,9 +59,11 @@
           "top": 5,
           "relativeTo": "map"
         },
-        "version": "2.10",
+        "version": "2.1",
         "id": "widgets_Search_Widget_3",
-        "name": "Search"
+        "icon": "widgets/Search/images/icon.png?wab_dv=2.1",
+        "name": "Search",
+        "label": "Search"
       },
       {
         "uri": "widgets/Coordinate/Widget",
@@ -76,9 +72,11 @@
           "bottom": 5,
           "relativeTo": "map"
         },
-        "version": "2.10",
+        "version": "2.1",
         "id": "widgets_Coordinate_Widget_4",
-        "name": "Coordinate"
+        "icon": "widgets/Coordinate/images/icon.png?wab_dv=2.1",
+        "name": "Coordinate",
+        "label": "Coordinate"
       },
       {
         "position": {
@@ -87,7 +85,13 @@
           "relativeTo": "map"
         },
         "placeholderIndex": 1,
-        "id": "_5"
+        "id": "_5",
+        "name": "eSearch",
+        "label": "Enhanced Search",
+        "version": "1.1.8",
+        "uri": "widgets/eSearch/Widget",
+        "config": "configs/eSearch/config_Enhanced Search.json",
+        "icon": "widgets/eSearch/images/icon.png?wab_dv=2.1"
       },
       {
         "position": {
@@ -95,7 +99,7 @@
           "top": 45,
           "relativeTo": "map"
         },
-        "placeholderIndex": 2,
+        "placeholderIndex": 1,
         "id": "_6"
       },
       {
@@ -104,7 +108,7 @@
           "top": 45,
           "relativeTo": "map"
         },
-        "placeholderIndex": 3,
+        "placeholderIndex": 2,
         "id": "_7"
       },
       {
@@ -113,7 +117,7 @@
           "top": 45,
           "relativeTo": "map"
         },
-        "placeholderIndex": 4,
+        "placeholderIndex": 3,
         "id": "_8"
       },
       {
@@ -122,7 +126,7 @@
           "top": 45,
           "relativeTo": "map"
         },
-        "placeholderIndex": 5,
+        "placeholderIndex": 4,
         "id": "_9"
       },
       {
@@ -133,9 +137,11 @@
           "zIndex": 1,
           "relativeTo": "map"
         },
-        "version": "2.10",
+        "version": "2.1",
         "id": "widgets_OverviewMap_Widget_10",
-        "name": "OverviewMap"
+        "icon": "widgets/OverviewMap/images/icon.png?wab_dv=2.1",
+        "name": "OverviewMap",
+        "label": "Overview Map"
       },
       {
         "uri": "widgets/HomeButton/Widget",
@@ -144,9 +150,11 @@
           "top": 75,
           "relativeTo": "map"
         },
-        "version": "2.10",
+        "version": "2.1",
         "id": "widgets_HomeButton_Widget_11",
-        "name": "HomeButton"
+        "icon": "widgets/HomeButton/images/icon.png?wab_dv=2.1",
+        "name": "HomeButton",
+        "label": "Home"
       },
       {
         "uri": "widgets/MyLocation/Widget",
@@ -155,18 +163,32 @@
           "top": 110,
           "relativeTo": "map"
         },
-        "version": "2.10",
+        "version": "2.1",
         "id": "widgets_MyLocation_Widget_12",
-        "name": "MyLocation"
+        "icon": "widgets/MyLocation/images/icon.png?wab_dv=2.1",
+        "name": "MyLocation",
+        "label": "My Location"
       },
       {
         "uri": "widgets/AttributeTable/Widget",
         "position": {
           "relativeTo": "browser"
         },
-        "version": "2.10",
+        "version": "2.1",
         "id": "widgets_AttributeTable_Widget_13",
-        "name": "AttributeTable"
+        "icon": "widgets/AttributeTable/images/icon.png?wab_dv=2.1",
+        "name": "AttributeTable",
+        "label": "Attribute Table",
+        "featureActions": [
+          {
+            "name": "ShowRelatedRecords",
+            "uri": "actions/ShowRelatedRecordsFeatureAction"
+          },
+          {
+            "name": "ViewInTable",
+            "uri": "actions/ViewInAttributeTableFeatureAction"
+          }
+        ]
       },
       {
         "uri": "widgets/Splash/Widget",
@@ -174,9 +196,11 @@
         "position": {
           "relativeTo": "browser"
         },
-        "version": "2.10",
+        "version": "2.1",
         "id": "widgets_Splash_Widget_14",
-        "name": "Splash"
+        "icon": "widgets/Splash/images/icon.png?wab_dv=2.1",
+        "name": "Splash",
+        "label": "Splash"
       },
       {
         "uri": "widgets/ZoomSlider/Widget",
@@ -185,33 +209,11 @@
           "left": 7,
           "relativeTo": "map"
         },
-        "version": "2.10",
+        "version": "2.1",
         "id": "widgets_ZoomSlider_Widget_15",
-        "name": "ZoomSlider"
-      },
-      {
-        "uri": "widgets/ExtentNavigate/Widget",
-        "visible": false,
-        "position": {
-          "top": 190,
-          "left": 7,
-          "relativeTo": "map"
-        },
-        "id": "widgets_ExtentNavigate_Widget_16",
-        "name": "ExtentNavigate",
-        "version": "2.10"
-      },
-      {
-        "uri": "widgets/FullScreen/Widget",
-        "visible": false,
-        "position": {
-          "top": 150,
-          "left": 7,
-          "relativeTo": "map"
-        },
-        "version": "2.10",
-        "id": "widgets_FullScreen_Widget_17",
-        "name": "FullScreen"
+        "icon": "widgets/ZoomSlider/images/icon.png?wab_dv=2.1",
+        "name": "ZoomSlider",
+        "label": "Zoom Slider"
       }
     ],
     "panel": {
@@ -226,24 +228,14 @@
     "2D": true,
     "position": {
       "left": 0,
-      "top": 40,
+      "top": 60,
       "right": 0,
       "bottom": 0
     },
-    "itemId": "4056c13609574e5c87f335447738beaa",
-    "mapOptions": {
-      "extent": {
-        "xmin": -10095675.939530378,
-        "ymin": 4065073.8932032106,
-        "xmax": -8883696.115468,
-        "ymax": 4963978.71715915,
-        "spatialReference": {
-          "wkid": 102100
-        }
-      }
-    },
+    "itemId": "6c69d92c92234b90a7cfe8bd82667814",
+    "mapOptions": {},
     "id": "map",
-    "portalUrl": "http://kygeonet.maps.arcgis.com/"
+    "portalUrl": "http://kygeonet.maps.arcgis.com"
   },
   "widgetPool": {
     "panel": {
@@ -258,82 +250,73 @@
     },
     "widgets": [
       {
-        "name": "NearMe",
-        "version": "2.10",
-        "IsController": false,
-        "uri": "widgets/NearMe/Widget",
-        "index": 2,
-        "id": "widgets_NearMe_Widget_29"
+        "name": "LocateFeatures",
+        "label": "Locate Features",
+        "version": "0.0.1",
+        "uri": "widgets/LocateFeatures/Widget",
+        "config": "configs/LocateFeatures/config_Locate Features.json",
+        "index": 0,
+        "id": "widgets_LocateFeatures_Widget_18",
+        "icon": "widgets/LocateFeatures/images/icon.png?wab_dv=2.1"
       },
-      {
+	  {
         "uri": "widgets/Legend/Widget",
-        "version": "2.10",
-        "id": "widgets_Legend_Widget_18",
+        "version": "2.1",
+        "id": "widgets_Legend_Widget_16",
         "name": "Legend",
-        "index": 3
+        "label": "Legend",
+        "index": 1,
+        "icon": "widgets/Legend/images/icon.png?wab_dv=2.1"
       },
       {
         "uri": "widgets/LayerList/Widget",
-        "version": "2.10",
-        "id": "widgets_LayerList_Widget_19",
+        "version": "2.1",
+        "id": "widgets_LayerList_Widget_17",
         "name": "LayerList",
-        "index": 4
+        "label": "Layer List",
+        "index": 2,
+        "icon": "widgets/LayerList/images/icon.png?wab_dv=2.1"
       },
-      {
+	  {
         "name": "BasemapGallery",
-        "version": "2.10",
+        "label": "Basemap Gallery",
+        "version": "2.0.1",
         "uri": "widgets/BasemapGallery/Widget",
-        "config": "configs/BasemapGallery/config_widgets_BasemapGallery_Widget_26.json",
-        "index": 5,
-        "id": "widgets_BasemapGallery_Widget_26"
+        "config": "configs/BasemapGallery/config_Basemap Gallery.json",
+        "index": 3,
+        "id": "widgets_BasemapGallery_Widget_25",
+        "icon": "widgets/BasemapGallery/images/icon.png?wab_dv=2.1"
       },
-      {
+	  {
         "name": "Draw",
-        "version": "2.10",
+        "label": "Draw",
+        "version": "2.0.1",
         "uri": "widgets/Draw/Widget",
-        "config": "configs/Draw/config_widgets_Draw_Widget_27.json",
-        "index": 6,
-        "id": "widgets_Draw_Widget_27"
+        "config": "configs/Draw/config_Draw.json",
+        "index": 4,
+        "id": "widgets_Draw_Widget_24",
+        "icon": "widgets/Draw/images/icon.png?wab_dv=2.1"
       },
       {
         "name": "Print",
-        "version": "2.10",
+        "label": "Print",
+        "version": "2.0.1",
         "uri": "widgets/Print/Widget",
-        "index": 7,
-        "id": "widgets_Print_Widget_23"
-      },
-      {
-        "name": "Bookmark",
-        "version": "2.10",
-        "uri": "widgets/Bookmark/Widget",
-        "index": 8,
-        "id": "widgets_Bookmark_Widget_22"
-      },
-      {
-        "name": "About",
-        "label": "switch for google street view",
-        "version": "2.10",
-        "uri": "widgets/About/Widget",
-        "index": 9,
-        "id": "widgets_About_Widget_28",
-        "config": "configs/About/config_widgets_About_Widget_28.json"
+        "config": "configs/Print/config_Print.json",
+        "index": 5,
+        "id": "widgets_Print_Widget_23",
+        "icon": "widgets/Print/images/icon.png?wab_dv=2.1"
       },
       {
         "name": "Share",
-        "version": "2.10",
+        "label": "Share",
+        "version": "1.2.0.1",
         "uri": "widgets/Share/Widget",
-        "config": "configs/Share/config_widgets_Share_Widget_24.json",
-        "index": 10,
-        "id": "widgets_Share_Widget_24"
-      },
-      {
-        "name": "About",
-        "version": "2.10",
-        "uri": "widgets/About/Widget",
-        "config": "configs/About/config_widgets_About_Widget_25.json",
-        "index": 11,
-        "id": "widgets_About_Widget_25"
-      }
+        "config": "configs/Share/config_Share.json",
+        "index": 6,
+        "id": "widgets_Share_Widget_21",
+        "icon": "widgets/Share/images/icon.png?wab_dv=2.1"
+      } 
     ],
     "groups": []
   },
@@ -358,18 +341,18 @@
     }
   },
   "loadingPage": {
-    "backgroundColor": "#508dca",
+    "backgroundColor": "#e6e6e6",
     "backgroundImage": {
       "visible": false
     },
     "loadingGif": {
       "visible": true,
-      "uri": "configs/loading/images/predefined_loading_1.gif",
-      "width": 58,
-      "height": 29
+      "uri": "configs/loading/images/loading.gif",
+      "width": 245,
+      "height": 122
     }
   },
-  "wabVersion": "2.10",
+  "wabVersion": "2.1",
   "isTemplateApp": true,
   "isWebTier": false,
   "httpProxy": {
@@ -377,10 +360,5 @@
     "alwaysUseProxy": false,
     "url": "",
     "rules": []
-  },
-  "dataSource": {
-    "dataSources": {},
-    "settings": {}
-  },
-  "logoLink": "http://"
+  }
 }

@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,16 +35,11 @@ define([
     name: 'CreateLayer',
     iconClass: 'icon-create-layer',
 
-    isFeatureSupported: function(featureSet, layer){
-      return featureSet.features.length > 0 &&
-             featureSet.features[0].geometry &&
-             layer &&
-             layer.geometryType &&
-             layer.fields &&
-             layer.objectIdField;
+    isFeatureSupported: function(featureSet){
+      return featureSet.features.length > 1;
     },
 
-    // Must provide objectIdField option if feature does not have 'objectid' field.
+    // Must provide objectIdField option if feature does not has 'objectid' field.
     onExecute: function(featureSet, layer){
       var featureLayer, serviceRendererJson, selectionSymbol, layerRenderer;
       var layerDefinition = {
@@ -132,8 +127,11 @@ define([
           'layerInfosChanged',
           lang.hitch(this, function(changedLayerInfo) {
             if(featureLayer.id === changedLayerInfo.id) {
-              changedLayerInfo.enablePopup();
-              addLayerHandle.remove();
+              //todo...
+              changedLayerInfo.loadInfoTemplate().then(lang.hitch(this, function(){
+                changedLayerInfo.enablePopup();
+                addLayerHandle.remove();
+              }));
             }
           }));
       this.map.addLayer(featureLayer);

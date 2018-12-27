@@ -1,6 +1,6 @@
 define({
   "_widgetLabel": "Header-controller",
-  "signin": "Sign in",
+  "signin": "Log ind",
   "signout": "Log ud",
   "about": "Om",
   "signInTo": "Log ind på",

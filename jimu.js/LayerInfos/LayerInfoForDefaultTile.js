@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,11 +29,14 @@ define([
     //    collection: {layerInfo: }
     // };
     constructor: function( operLayer, map ) {
-      this.isTiled = true;
+      this.noLegend = true;
       /*jshint unused: false*/
     },
 
-    _initVisible: function() {
+    getExtent: function() {
+    },
+
+    initVisible: function() {
     },
 
     _setTopLayerVisible: function(visible) {

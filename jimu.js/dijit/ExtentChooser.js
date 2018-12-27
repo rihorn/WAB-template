@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,12 +23,11 @@ define(['dojo/_base/declare',
   'dojo/Evented',
   'esri/geometry/Extent',
   'jimu/portalUrlUtils',
-  "esri/dijit/Search",
   'jimu/dijit/LoadingShelter',
   'jimu/utils'
 ],
 function(declare, lang, html, on, Deferred, _WidgetBase,
-  Evented, Extent, portalUrlUtils, Search,
+  Evented, Extent, portalUrlUtils,
   LoadingShelter, jimuUtils) {
   /* global esriConfig */
 
@@ -80,13 +79,6 @@ function(declare, lang, html, on, Deferred, _WidgetBase,
           height: '100%'
         }
       }, this.domNode);
-      this.search = html.create('div', {
-        style: {
-          position: "absolute",
-          right: 0,
-          top: 0
-        }
-      }, mapNode);
 
       if(!this.portalUrl || !this.itemId){
         return;
@@ -124,18 +116,6 @@ function(declare, lang, html, on, Deferred, _WidgetBase,
         this.map.webMapResponse = response;
         this.own(on(this.map, 'extent-change', lang.hitch(this, function(evt){
           this.onExtentChange(evt.extent);
-        })));
-
-        var search = new Search({
-          map: this.map,
-          enableLabel: false
-        }, this.search);
-        search.startup();
-        this.own(on(search, 'search-results', lang.hitch(this, function (evt) {
-          if (evt && evt.results && evt.results[0] &&
-            evt.results[0][0] && evt.results[0][0].extent) {
-            this.onExtentChange(evt.results[0][0].extent);
-          }
         })));
 
         if(!this.initExtent){

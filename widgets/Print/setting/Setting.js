@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,9 +30,7 @@ define([
     'jimu/utils',
     "dojo/store/Memory",
     'dijit/form/ValidationTextBox',
-    'dijit/form/ComboBox',
-    'jimu/dijit/CheckBox',
-    'dijit/form/SimpleTextarea'
+    'dijit/form/ComboBox'
   ],
   function(
     declare,
@@ -55,39 +53,15 @@ define([
       memoryFormat: new Memory(),
       memoryLayout: new Memory(),
       _portalPrintTaskURL: null,
-      validUrl: true,
 
       startup: function() {
         this.inherited(arguments);
         this.setConfig(this.config);
         domAttr.set(this.checkImg, 'src', require.toUrl('jimu') + "/images/loading.gif");
-        this.serviceURL.validator = lang.hitch(this, this.validator);
         this.own(on(this.serviceURL, 'Change', lang.hitch(this, this.onUrlChange)));
       },
 
-      validator: function(value) {
-        if (!this.validUrl) {
-          this.serviceURL.invalidMessage = this.nls.urlNotAvailable;
-          return false;
-        }
-
-        var portalNewPrintUrl = portalUrlUtils.getNewPrintUrl(this.appConfig.portalUrl);
-
-        if (value === portalNewPrintUrl || /^https?:\/\/.+sharing\/tools\/newPrint$/.test(value) ||
-          /^https?:\/\/.+\/GPServer\//.test(value)) {
-          return true;
-        }
-        this.serviceURL.invalidMessage = this.nls.notPrintTask;
-        return false;
-      },
-
       onUrlChange: function() {
-        this.validUrl = true;
-
-        if (!this.serviceURL.validate()) {
-          return;
-        }
-
         var taskUrl = this.serviceURL.get('value');
         if (taskUrl) {
           domStyle.set(this.checkProcessDiv, "display", "");
@@ -99,7 +73,6 @@ define([
           this.defaultLayout.set('value', "");
           domStyle.set(this.defaultFormat.domNode.parentNode.parentNode, 'display', 'none');
           domStyle.set(this.defaultLayout.domNode.parentNode.parentNode, 'display', 'none');
-          // domStyle.set(this.showAdvancedOptionChk.domNode.parentNode.parentNode, 'display', 'none');
 
           var serviceUrl = portalUrlUtils.setHttpProtocol(this.serviceURL.get('value'));
           var portalNewPrintUrl = portalUrlUtils.getNewPrintUrl(this.appConfig.portalUrl);
@@ -107,6 +80,8 @@ define([
           if (serviceUrl === portalNewPrintUrl ||
             /sharing\/tools\/newPrint$/.test(serviceUrl)) {
             domStyle.set(this.checkProcessDiv, "display", "none");
+            domStyle.set(this.defaultFormat.domNode.parentNode.parentNode, 'display', 'none');
+            domStyle.set(this.defaultLayout.domNode.parentNode.parentNode, 'display', 'none');
           } else {
             this._getPrintTaskInfo(taskUrl);
           }
@@ -128,22 +103,25 @@ define([
         });
       },
 
-      _handleError: function() {
+      _handleError: function(err) {
         domStyle.set(this.checkProcessDiv, "display", "none");
-        this.validUrl = false;
-        this.serviceURL.validate();
+        var popup = new Message({
+          message: err.message,
+          buttons: [{
+            label: this.nls.ok,
+            onClick: lang.hitch(this, function() {
+              popup.close();
+            })
+          }]
+        });
       },
 
       _handlePrintInfo: function(data) {
         domStyle.set(this.checkProcessDiv, "display", "none");
         domStyle.set(this.defaultFormat.domNode.parentNode.parentNode, 'display', '');
         domStyle.set(this.defaultLayout.domNode.parentNode.parentNode, 'display', '');
-        // domStyle.set(this.showAdvancedOptionChk.domNode.parentNode.parentNode, 'display', '');
-        var hasWebmapParam = false, hasOutputParam = false;
-
         if (data && data.parameters) {
           var len = data.parameters.length;
-          var webmapParam = 'web_map_as_json', outputParam = 'output_file';
           for (var i = 0; i < len; i++) {
             var param = data.parameters[i];
             if (param.name === "Format" || param.name === "Layout_Template") {
@@ -178,18 +156,7 @@ define([
                 }
               }
             }
-            if (typeof param.name === 'string' && param.name.toLowerCase() === webmapParam) {
-              hasWebmapParam = true;
-            }
-            if (typeof param.name === 'string' && param.name.toLowerCase() === outputParam) {
-              hasOutputParam = true;
-            }
           }
-        }
-
-        if (!hasWebmapParam || !hasOutputParam) {
-          this.validUrl = false;
-          this.serviceURL.validate();
         }
       },
 
@@ -212,8 +179,6 @@ define([
         if (config.defaultCopyright) {
           this.defaultCopyright.set('value', utils.stripHTML(config.defaultCopyright));
         }
-        this.copyrightEditableChk.setValue(config.copyrightEditable !== false);
-        // this.showAdvancedOptionChk.setValue(config.showAdvancedOption !== false);
       },
 
       _onTitleBlur: function() {
@@ -229,7 +194,7 @@ define([
       },
 
       getConfig: function() {
-        if (!this.serviceURL.validate()) {
+        if (!this.serviceURL.get('value')) {
           var popup = new Message({
             message: this.nls.warning,
             buttons: [{
@@ -247,8 +212,6 @@ define([
         this.config.defaultCopyright = utils.stripHTML(this.defaultCopyright.get('value'));
         this.config.defaultFormat = this.defaultFormat.get('value');
         this.config.defaultLayout = this.defaultLayout.get('value');
-        this.config.copyrightEditable = this.copyrightEditableChk.getValue();
-        // this.config.showAdvancedOption = this.showAdvancedOptionChk.getValue();
         return this.config;
       },
 

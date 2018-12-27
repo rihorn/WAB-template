@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@ define(['dojo/_base/declare',
   'dojo/_base/Color',
   'dijit/TooltipDialog',
   'dijit/popup',
-  "jimu/dijit/ColorSelector"
+  'dojox/widget/ColorPicker'
 ],
 function(declare, _WidgetBase, _TemplatedMixin, lang, html, on, Color, TooltipDialog,
-  dojoPopup, ColorSelector) {
+  dojoPopup, DojoColorPicker) {
   return declare([_WidgetBase, _TemplatedMixin], {
     baseClass: 'jimu-color-picker-btn',
     declaredClass: 'jimu.dijit.ColorPickerButton',
@@ -134,7 +134,7 @@ function(declare, _WidgetBase, _TemplatedMixin, lang, html, on, Color, TooltipDi
         content: ttdContent
       });
       html.addClass(this.tooltipDialog.domNode, 'jimu-color-picker-dialog');
-      this.picker = new ColorSelector({
+      this.picker = new DojoColorPicker({
         showHex: this.showHex,
         showRgb: this.showRgb,
         showHsv: this.showHsv,

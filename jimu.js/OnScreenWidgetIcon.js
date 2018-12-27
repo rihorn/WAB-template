@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,9 +32,6 @@ function(declare, lang, array, html, on, _WidgetBase, utils) {
       this.iconNode = html.create('img', {
         src: this.widgetConfig.icon
       }, this.domNode);
-      if(window.isRTL && this.widgetConfig.mirrorIconForRTL){
-        html.addClass(this.iconNode, 'jimu-flipx');
-      }
       html.setAttr(this.domNode, 'title', this.widgetConfig.label);
       html.setAttr(this.domNode, 'data-widget-name', this.widgetConfig.name);
       this.own(on(this.domNode, 'click', lang.hitch(this, function(){

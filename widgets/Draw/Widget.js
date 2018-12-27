@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,12 +20,9 @@ define([
     'jimu/BaseWidget',
     'dojo/on',
     'dojo/Deferred',
-    // 'dojo/number',
-    'dojo/i18n',
-    'dojo/i18n!esri/nls/jsapi',
     'dojo/_base/html',
     'dojo/_base/lang',
-    // 'dojo/_base/Color',
+    'dojo/_base/Color',
     'dojo/_base/array',
     'dojo/dom-style',
     'esri/config',
@@ -36,9 +33,6 @@ define([
     'esri/symbols/Font',
     'esri/units',
     'esri/geometry/webMercatorUtils',
-    'esri/tasks/ProjectParameters',
-    'esri/SpatialReference',
-    'esri/request',
     'esri/geometry/geodesicUtils',
     'esri/tasks/GeometryService',
     'esri/tasks/AreasAndLengthsParameters',
@@ -49,24 +43,18 @@ define([
     'esri/layers/FeatureLayer',
     'jimu/dijit/ViewStack',
     'jimu/utils',
-    'jimu/dijit/ToggleButton',
     'jimu/SpatialReference/wkidUtils',
     'jimu/LayerInfos/LayerInfos',
     'jimu/dijit/LoadingIndicator',
     'jimu/dijit/DrawBox',
     'jimu/dijit/SymbolChooser',
-    'jimu/dijit/ColorPicker',
     'dijit/form/Select',
     'dijit/form/NumberSpinner'
   ],
-  function(declare, _WidgetsInTemplateMixin, BaseWidget, on, Deferred, dojoI18n, esriNlsBundle,
-    html, lang, array, domStyle,
+  function(declare, _WidgetsInTemplateMixin, BaseWidget, on, Deferred, html, lang, Color, array, domStyle,
     esriConfig, Graphic, Polyline, Polygon, TextSymbol, Font, esriUnits, webMercatorUtils,
-    EsriProjectParameters,
-    EsriSpatialReference,
-    EsriRequest,
     geodesicUtils, GeometryService, AreasAndLengthsParameters, LengthsParameters, UndoManager,
-    OperationBase, GraphicsLayer, FeatureLayer, ViewStack, jimuUtils, ToggleButton, wkidUtils, LayerInfos,
+    OperationBase, GraphicsLayer, FeatureLayer, ViewStack, jimuUtils, wkidUtils, LayerInfos,
     LoadingIndicator) {
     //custom operations
     var customOp = {};
@@ -126,10 +114,7 @@ define([
 
       postMixInProperties: function(){
         this.inherited(arguments);
-        this.jimuNls = window.jimuNls;
         this.config.isOperationalLayer = !!this.config.isOperationalLayer;
-        //point locale decimal
-        this.numberDecimal = dojoI18n.getLocalization("dojo.cldr", "number", window.dojoConfig.locale).decimal;
 
         if(esriConfig.defaults.geometryService){
           this._gs = esriConfig.defaults.geometryService;
@@ -145,8 +130,8 @@ define([
 
       postCreate: function() {
         this.inherited(arguments);
-        this._initGraphicsLayers();
-        // jimuUtils.combineRadioCheckBoxWithLabel(this.showMeasure, this.showMeasureLabel);
+        this._initLayers();
+        jimuUtils.combineRadioCheckBoxWithLabel(this.showMeasure, this.showMeasureLabel);
         this.drawBox.setMap(this.map);
 
         this.viewStack = new ViewStack({
@@ -156,48 +141,77 @@ define([
         html.place(this.viewStack.domNode, this.settingContent);
 
         this._initUnitSelect();
-        this._initToggleUnits();
         this._bindEvents();
         //let all buttons disable-like
         this._enableBtn(this.btnUndo, false);
         this._enableBtn(this.btnRedo, false);
         this._enableBtn(this.btnClear, false);
-
-        this.saveDrawToolTips();
       },
 
-      //save original toolbar's tips
-      saveDrawToolTips: function(){
-        this._defaultStartStr = esriNlsBundle.toolbars.draw.start;
-        this._defaultAddPointStr = esriNlsBundle.toolbars.draw.addPoint;
-        this._defaultAddShapeStr = esriNlsBundle.toolbars.draw.addShape;
-        this._defaultFreehandStr = esriNlsBundle.toolbars.draw.freehand;
-
-        this.suffixStr = '';
-        if(this.map.snappingManager){
-          this.suffixStr = "<br/>" + "(" + this.jimuNls.snapping.pressStr + "<b>" +
-                            this.jimuNls.snapping.ctrlStr + "</b> " +
-                            this.jimuNls.snapping.snapStr + ")";
-        }
-      },
-
-      customDrawToolTips: function() {
-        esriNlsBundle.toolbars.draw.start = this._defaultStartStr + this.suffixStr;
-        esriNlsBundle.toolbars.draw.addPoint = this._defaultAddPointStr + this.suffixStr;
-        esriNlsBundle.toolbars.draw.addShape = this._defaultAddShapeStr + this.suffixStr;
-        esriNlsBundle.toolbars.draw.freehand = this._defaultFreehandStr + this.suffixStr;
-      },
-
-      resetDrawToolTips: function(){
-        esriNlsBundle.toolbars.draw.start = this._defaultStartStr;
-        esriNlsBundle.toolbars.draw.addPoint = this._defaultAddPointStr;
-        esriNlsBundle.toolbars.draw.addShape = this._defaultAddShapeStr;
-        esriNlsBundle.toolbars.draw.freehand = this._defaultFreehandStr;
-      },
-
-      _initGraphicsLayers: function(){
+      _initLayers: function(){
         this._graphicsLayer = new GraphicsLayer();
-        if(!this.config.isOperationalLayer){
+
+        if(this.config.isOperationalLayer){
+          var layerDefinition = {
+            "name": "",
+            "geometryType": "",
+            "fields": [{
+              "name": this._objectIdName,
+              "type": this._objectIdType,
+              "alias": this._objectIdName
+            }]
+          };
+          var pointDefinition = lang.clone(layerDefinition);
+          pointDefinition.name = this.nls.points;//this.label + "_" +
+          pointDefinition.geometryType = "esriGeometryPoint";
+          this._pointLayer = new FeatureLayer({
+            layerDefinition: pointDefinition,
+            featureSet: null
+          });
+
+          var polylineDefinition = lang.clone(layerDefinition);
+          polylineDefinition.name = this.nls.lines;
+          polylineDefinition.geometryType = "esriGeometryPolyline";
+          this._polylineLayer = new FeatureLayer({
+            layerDefinition: polylineDefinition,
+            featureSet: null
+          });
+
+          var polygonDefinition = lang.clone(layerDefinition);
+          polygonDefinition.name = this.nls.areas;
+          polygonDefinition.geometryType = "esriGeometryPolygon";
+          this._polygonLayer = new FeatureLayer({
+            layerDefinition: polygonDefinition,
+            featureSet: null
+          });
+
+          var labelDefinition = lang.clone(layerDefinition);
+          labelDefinition.name = this.nls.text;
+          labelDefinition.geometryType = "esriGeometryPoint";
+          this._labelLayer = new FeatureLayer({
+            layerDefinition: labelDefinition,
+            featureSet: null
+          });
+
+          var loading = new LoadingIndicator();
+
+          loading.placeAt(this.domNode);
+
+          LayerInfos.getInstance(this.map, this.map.itemInfo)
+          .then(lang.hitch(this, function(layerInfos){
+            if(!this.domNode){
+              return;
+            }
+
+            loading.destroy();
+            var layers = [this._polygonLayer, this._polylineLayer,
+                          this._pointLayer, this._labelLayer];
+            layerInfos.addFeatureCollection(layers, this.label + "_" + this.nls.results);
+          }), lang.hitch(this, function(err){
+            loading.destroy();
+            console.error("Can not get LayerInfos instance", err);
+          }));
+        }else{
           this._pointLayer = new GraphicsLayer();
           this._polylineLayer = new GraphicsLayer();
           this._polygonLayer = new GraphicsLayer();
@@ -209,40 +223,18 @@ define([
         }
       },
 
-      _removeEmptyLayers: function(){
-        if(this._pointLayer && this._pointLayer.graphics.length === 0){
-          this.map.removeLayer(this._pointLayer);
-          this._pointLayer = null;
-        }
-        if(this._polylineLayer && this._polylineLayer.graphics.length === 0){
-          this.map.removeLayer(this._polylineLayer);
-          this._polylineLayer = null;
-        }
-        if(this._polygonLayer && this._polygonLayer.graphics.length === 0){
-          this.map.removeLayer(this._polygonLayer);
-          this._polygonLayer = null;
-        }
-        if(this._labelLayer && this._labelLayer.graphics.length === 0){
-          this.map.removeLayer(this._labelLayer);
-          this._labelLayer = null;
-        }
+      onActive: function(){
+        this.map.setInfoWindowOnClick(false);
       },
 
       onDeActive: function(){
         this._closeColorPicker();
         this.drawBox.deactivate();
-      },
-
-      onOpen: function(){
-        this.customDrawToolTips();
+        this.map.setInfoWindowOnClick(true);
       },
 
       onClose: function () {
-        this.resetDrawToolTips();
         this._closeColorPicker();
-        if(this.config.isOperationalLayer){
-          this._removeEmptyLayers();
-        }
       },
 
       _closeColorPicker: function () {
@@ -256,13 +248,10 @@ define([
       },
 
       _resetUnitsArrays: function(){
-        this.defaultLocationUnits = [];
         this.defaultDistanceUnits = [];
         this.defaultAreaUnits = [];
-        this.configLocationUnits = [];
         this.configDistanceUnits = [];
         this.configAreaUnits = [];
-        this.locationUnits = [];
         this.distanceUnits = [];
         this.areaUnits = [];
       },
@@ -287,7 +276,7 @@ define([
         })));
 
         //bind unit events
-        // this.own(on(this.showMeasure, 'click', lang.hitch(this, this._setMeasureVisibility)));
+        this.own(on(this.showMeasure, 'click', lang.hitch(this, this._setMeasureVisibility)));
 
         //bind UndoManager events
         this.own(on(this._undoManager, 'change', lang.hitch(this, this._onUndoManagerChanged)));
@@ -296,9 +285,6 @@ define([
       _onIconSelected:function(target, geotype, commontype){
         /*jshint unused: false*/
         this._setDrawDefaultSymbols();
-        if(this.config.isOperationalLayer){
-          this._checkOperateLayers(commontype);
-        }
         if(commontype === 'point'){
           this.viewStack.switchView(this.pointSection);
         }
@@ -312,74 +298,6 @@ define([
           this.viewStack.switchView(this.textSection);
         }
         this._setMeasureVisibility();
-      },
-
-      //graphics's label use the same labelLayer as text draw mode
-      _checkTextOperateLayer: function(){
-        if(!this._labelLayer){
-          this._checkOperateLayers('text');
-        }
-      },
-
-      _checkOperateLayers: function(type){
-        var definition = {
-          "name": "",
-          "geometryType": "",
-          "fields": [{
-            "name": this._objectIdName,
-            "type": this._objectIdType,
-            "alias": this._objectIdName
-          }]
-        };
-        var layer = null;
-        var layerDefinition = lang.clone(definition);
-        if(type === 'point' && !this._pointLayer){
-          layerDefinition.name = this.nls.points;
-          layerDefinition.geometryType = "esriGeometryPoint";
-          layer = this._getFeatureLayer(layerDefinition);
-          this._pointLayer = layer;
-        }else if(type === 'polyline' && !this._polylineLayer){
-          layerDefinition.name = this.nls.lines;
-          layerDefinition.geometryType = "esriGeometryPolyline";
-          layer = this._getFeatureLayer(layerDefinition);
-          this._polylineLayer = layer;
-        }else if(type === 'polygon' && !this._polygonLayer){
-          layerDefinition.name = this.nls.areas;
-          layerDefinition.geometryType = "esriGeometryPolygon";
-          layer = this._getFeatureLayer(layerDefinition);
-          this._polygonLayer = layer;
-        }else if(type === 'text' && !this._labelLayer){
-          layerDefinition.name = this.nls.text;
-          layerDefinition.geometryType = "esriGeometryPoint";
-          layer = this._getFeatureLayer(layerDefinition);
-          this._labelLayer = layer;
-        }
-        if(layer){
-          this._addLayerFromLayerInfos(layer);
-        }
-      },
-
-      _getFeatureLayer: function(labelDefinition){
-        return new FeatureLayer({
-          layerDefinition: labelDefinition,
-          featureSet: null
-        });
-      },
-
-      _addLayerFromLayerInfos: function(layer){
-        var loading = new LoadingIndicator();
-        loading.placeAt(this.domNode);
-        LayerInfos.getInstance(this.map, this.map.itemInfo)
-        .then(lang.hitch(this, function(layerInfos){
-          if(!this.domNode){
-            return;
-          }
-          loading.destroy();
-          layerInfos.addFeatureCollection([layer], this.label + "_" + layer.name);
-        }), lang.hitch(this, function(err){
-          loading.destroy();
-          console.error("Can not get LayerInfos instance", err);
-        }));
       },
 
       _onDrawEnd:function(graphic, geotype, commontype){
@@ -401,35 +319,20 @@ define([
           geometry = polygon;
           commontype = 'polygon';
         }
-        var disApplied = html.hasClass(this.distanceMeasureHeader, 'applied');
         if(commontype === 'polyline'){
-          if(disApplied){
-            this._checkTextOperateLayer();
+          if(this.showMeasure.checked){
             this._addLineMeasure(geometry, graphic);
           }else{
             this._pushAddOperation([graphic]);
           }
         }
         else if(commontype === 'polygon'){
-          var areaApplied = html.hasClass(this.areaMeasureHeader, 'applied');
-          if(disApplied || areaApplied){
-            this._checkTextOperateLayer();
-            this._addPolygonMeasure(geometry, graphic, areaApplied, disApplied);
+          if(this.showMeasure.checked){
+            this._addPolygonMeasure(geometry, graphic);
           }else{
             this._pushAddOperation([graphic]);
           }
-        }
-        else if (commontype === "text") {
-          if (graphic.symbol && graphic.symbol.font && graphic.symbol.font.setFamily) {
-            graphic.symbol.font.setFamily("Arial Unicode MS");//set font-family for print unicode,#11085
-          }
-          this._pushAddOperation([graphic]);
-        } else { //location
-          disApplied = html.hasClass(this.locationMeasureHeader, 'applied');
-          if(disApplied){
-            this._checkTextOperateLayer();
-            this._addLocationMeasure(geometry, graphic);
-          }
+        }else{
           this._pushAddOperation([graphic]);
         }
       },
@@ -437,23 +340,12 @@ define([
       _initUnitSelect:function(){
         this._initDefaultUnits();
         this._initConfigUnits();
-        var m = this.configLocationUnits;
-        var n = this.defaultLocationUnits;
-        this.locationUnits = m.length > 0 ? m : n;
         var a = this.configDistanceUnits;
         var b = this.defaultDistanceUnits;
         this.distanceUnits = a.length > 0 ? a : b;
         var c = this.configAreaUnits;
         var d = this.defaultAreaUnits;
         this.areaUnits = c.length > 0 ? c : d;
-        array.forEach(this.locationUnits, lang.hitch(this, function(unitInfo){
-          var option = {
-            value:unitInfo.unit,
-            label:unitInfo.label
-          };
-          this.locationUnitSelect.addOption(option);
-        }));
-
         array.forEach(this.distanceUnits, lang.hitch(this, function(unitInfo){
           var option = {
             value:unitInfo.unit,
@@ -472,20 +364,6 @@ define([
       },
 
       _initDefaultUnits:function(){
-        this.defaultLocationUnits = [{
-          unit: 'DEGREES',
-          label: this.jimuNls.units.degrees,
-          abbr: this.jimuNls.units.degreesAbbr || 'dd',
-          abbrTag: 'DD',
-          format: "YN XE"
-        }, {
-          unit: 'DEGREE-MINUTE-SECOND',
-          label: this.jimuNls.units.degreeMS,
-          abbr: this.jimuNls.units.degreeMSAbbr || 'dms',
-          abbrTag: 'DMS',
-          format: "A°B'C\"N X°Y'Z\"E"
-        }];
-
         this.defaultDistanceUnits = [{
           unit: 'KILOMETERS',
           label: this.nls.kilometers
@@ -501,9 +379,6 @@ define([
         }, {
           unit: 'YARDS',
           label: this.nls.yards
-        }, {
-          unit: 'NAUTICAL_MILES',
-          label: this.nls.nauticalmiles
         }];
 
         this.defaultAreaUnits = [{
@@ -531,17 +406,6 @@ define([
       },
 
       _initConfigUnits:function(){
-        array.forEach(this.config.locationUnits, lang.hitch(this, function(unitInfo){
-          var unit = unitInfo.unit;
-          //esriUnits don't has location units...
-          // if(esriUnits[unit]){
-          var defaultUnitInfo = this._getDefaultLocationUnitInfo(unit);
-          unitInfo.label = defaultUnitInfo.label;
-          unitInfo.abbrTag = defaultUnitInfo.abbrTag;
-          this.configLocationUnits.push(unitInfo);
-          // }
-        }));
-
         array.forEach(this.config.distanceUnits, lang.hitch(this, function(unitInfo){
           var unit = unitInfo.unit;
           if(esriUnits[unit]){
@@ -561,16 +425,6 @@ define([
         }));
       },
 
-      _getDefaultLocationUnitInfo:function(unit){
-        for(var i = 0; i < this.defaultLocationUnits.length; i++){
-          var unitInfo = this.defaultLocationUnits[i];
-          if(unitInfo.unit === unit){
-            return unitInfo;
-          }
-        }
-        return null;
-      },
-
       _getDefaultDistanceUnitInfo:function(unit){
         for(var i = 0; i < this.defaultDistanceUnits.length; i++){
           var unitInfo = this.defaultDistanceUnits[i];
@@ -584,16 +438,6 @@ define([
       _getDefaultAreaUnitInfo:function(unit){
         for(var i = 0; i < this.defaultAreaUnits.length; i++){
           var unitInfo = this.defaultAreaUnits[i];
-          if(unitInfo.unit === unit){
-            return unitInfo;
-          }
-        }
-        return null;
-      },
-
-      _getLocationUnitInfo:function(unit){
-        for(var i = 0; i < this.locationUnits.length; i++){
-          var unitInfo = this.locationUnits[i];
           if(unitInfo.unit === unit){
             return unitInfo;
           }
@@ -622,62 +466,39 @@ define([
       },
 
       _setMeasureVisibility:function(){
-        html.setStyle(this.locationMeasure, 'display', 'none');
+        html.setStyle(this.measureSection, 'display', 'none');
         html.setStyle(this.areaMeasure, 'display', 'none');
         html.setStyle(this.distanceMeasure, 'display', 'none');
-        var locationDisplay = html.getStyle(this.pointSection, 'display');
         var lineDisplay = html.getStyle(this.lineSection, 'display');
         var polygonDisplay = html.getStyle(this.polygonSection, 'display');
-        if (locationDisplay === 'block') {
-          html.setStyle(this.locationMeasure, 'display', 'block');
-        } else if (lineDisplay === 'block') {
-          html.setStyle(this.distanceMeasure, 'display', 'block');
+        if (lineDisplay === 'block') {
+          html.setStyle(this.measureSection, 'display', 'block');
+          if (this.showMeasure.checked) {
+            html.setStyle(this.distanceMeasure, 'display', 'block');
+          }
         } else if (polygonDisplay === 'block') {
-          html.setStyle(this.distanceMeasure, 'display', 'block');
-          html.setStyle(this.areaMeasure, 'display', 'block');
-        }
-      },
-
-      _initToggleUnits: function(){
-        var types = ["location", "area", "distance"];
-        array.forEach(types, lang.hitch(this, function(type){
-          var node = this[type + "MeasureHeader"];
-          var toggleBtn = new ToggleButton({}, this[type + "ToggleDraw"]);
-          toggleBtn.startup();
-          node.toggleButton = toggleBtn;
-          this.own(on(node, 'click', lang.hitch(this, this.toggleFilter, node)));
-        }));
-      },
-
-      toggleFilter: function(node) {
-        var type = html.getAttr(node,"data-index");
-        var dom = this[type + "Body"];
-        var applied = html.hasClass(node, 'applied');
-        if (applied) {
-          node.toggleButton.uncheck();
-          html.removeClass(node, 'applied');
-          html.setStyle(dom, 'display', 'none');
-        }else{
-          node.toggleButton.check();
-          html.addClass(node, 'applied');
-          html.setStyle(dom, 'display', 'block');
+          html.setStyle(this.measureSection, 'display', 'block');
+          if (this.showMeasure.checked) {
+            html.setStyle(this.areaMeasure, 'display', 'block');
+            html.setStyle(this.distanceMeasure, 'display', 'block');
+          }
         }
       },
 
       _getPointSymbol: function() {
-        return this.pointSymChooser.getValidSymbol();
+        return this.pointSymChooser.getSymbol();
       },
 
       _getLineSymbol: function() {
-        return this.lineSymChooser.getValidSymbol();
+        return this.lineSymChooser.getSymbol();
       },
 
       _getPolygonSymbol: function() {
-        return this.fillSymChooser.getValidSymbol();
+        return this.fillSymChooser.getSymbol();
       },
 
       _getTextSymbol: function() {
-        return this.textSymChooser.getValidSymbol();
+        return this.textSymChooser.getSymbol();
       },
 
       _setDrawDefaultSymbols: function() {
@@ -686,266 +507,24 @@ define([
         this.drawBox.setPolygonSymbol(this._getPolygonSymbol());
       },
 
-      _getLocalDecimalNumber: function(numStr){
-        //return dojoNumber.format(parseFloat(numStr));//decimal precision is not enough
-        return numStr.replace('.', this.numberDecimal);
-      },
-
-      getFormattedDDStr: function (fromValue, withFormatStr, addPrefix) {
-        var r = {};
-        r.sourceValue = fromValue;
-        r.sourceFormatString = withFormatStr;
-
-        var parts = fromValue.split(/[ ,]+/);
-
-        r.latdeg = parts[0].replace(/[nNsS]/, '');
-        var londegParts = parts[1].split('.'); //'058.123'
-        parts[1] = parseInt(londegParts[0], 10).toString() + '.' + londegParts[1]; //'058.123' to '58.123'
-        r.londeg = parts[1].replace(/[eEwW]/, '');
-
-        //decimal locale
-        r.latdeg = this._getLocalDecimalNumber(r.latdeg);
-        r.londeg = this._getLocalDecimalNumber(r.londeg);
-        if (addPrefix) {
-          if (parts[0].slice(-1) === 'N') {
-            r.latdeg = '+' + r.latdeg;
-          } else {
-            r.latdeg = '-' + r.latdeg;
-          }
-          if (parts[1].slice(-1) === "W") {
-            r.londeg = '-' + r.londeg;
-          } else {
-            r.londeg = '+' + r.londeg;
-          }
-        }
-
-        var s = withFormatStr.replace(/X/, r.londeg);
-        s = s.replace(/[eEwW]/, parts[1].slice(-1));
-        s = s.replace(/[nNsS]/, parts[0].slice(-1));
-        s = s.replace(/Y/, r.latdeg);
-
-        r.formatResult = s;
-        return r;
-      },
-
-      getFormattedDMSStr: function (fromValue, withFormatStr, addPrefix) {
-        var r = {};
-        r.sourceValue = fromValue;
-        r.sourceFormatString = withFormatStr;
-
-        r.parts = fromValue.split(/[ ,]+/);
-
-        r.latdeg = r.parts[0];
-        r.latmin = r.parts[1];
-        r.latsec = r.parts[2].replace(/[NnSs]/, '');
-
-        r.londeg = r.parts[3];
-        r.londeg = parseInt(r.londeg, 10).toString(); //'058' to '58'
-        r.lonmin = r.parts[4];
-        if (r.parts[5]) {
-          r.lonsec = r.parts[5].replace(/[EWew]/, '');
-        }
-
-        //decimal locale
-        r.latsec = this._getLocalDecimalNumber(r.latsec);
-        r.lonsec = this._getLocalDecimalNumber(r.lonsec);
-        if (addPrefix) {
-          if (r.parts[2].slice(-1) === 'N') {
-            r.latdeg = '+' + r.latdeg;
-          } else {
-            r.latdeg = '-' + r.latdeg;
-          }
-          if (r.parts[5].slice(-1) === 'W') {
-            r.londeg = '-' + r.londeg;
-          } else {
-            r.londeg = '+' + r.londeg;
-          }
-        }
-
-        //A°B'C''N X°Y'Z''E
-        var s = withFormatStr.replace(/A/, r.latdeg);
-        s = s.replace(/B/, r.latmin);
-        s = s.replace(/C/, r.latsec);
-        s = s.replace(/X/, r.londeg);
-        s = s.replace(/Y/, r.lonmin);
-        s = s.replace(/Z/, r.lonsec);
-        s = s.replace(/[NnSs]/, r.parts[2].slice(-1));
-        if (r.parts[5]) {
-          s = s.replace(/[EeWw]/, r.parts[5].slice(-1));
-        }
-
-        r.formatResult = s;
-        return r;
-      },
-
-      addPrefix: false, //Add "+/-" prefix to positive and negative numbers
-      getCoordByFormat: function (type, value, format) {
-        var r;
-        type = type.toUpperCase();
-        switch (type) {
-          case 'DD':
-            r = this.getFormattedDDStr(value, format, this.addPrefix);
-            break;
-          case 'DMS':
-            r = this.getFormattedDMSStr(value, format, this.addPrefix);
-            break;
-        }
-        return r.formatResult;
-      },
-
-      getCoordValues: function (fromInput, toType, numDigits) {
-        var deferred = new Deferred();
-        /**
-         * for parameter info
-         * http://resources.arcgis.com/en/help/arcgis-rest-api/#/To_GeoCoordinateString/02r30000026w000000/
-         **/
-        var params = {
-          sr: 4326,
-          coordinates: [[fromInput.x, fromInput.y]],
-          conversionType: toType,
-          numOfDigits: numDigits || 6,
-          rounding: true,
-          addSpaces: false
-        };
-
-        switch (toType) {
-          case 'DD':
-            params.numOfDigits = 6;
-            break;
-          case 'USNG':
-            params.numOfDigits = 5;
-            break;
-          case 'MGRS':
-            params.conversionMode = 'mgrsDefault';
-            params.numOfDigits = 5;
-            break;
-          case 'UTM (H)':
-            params.conversionType = 'utm';
-            params.conversionMode = 'utmNorthSouth';
-            params.addSpaces = true;
-            break;
-          case 'UTM':
-            params.conversionType = 'utm';
-            params.conversionMode = 'utmDefault';
-            params.addSpaces = true;
-            break;
-          case 'GARS':
-            params.conversionMode = 'garsDefault';
-            break;
-        }
-
-        this._gs.toGeoCoordinateString(params).then(function (itm) {
-          deferred.resolve(itm);
-        }, function () {
-          deferred.resolve(null);
-        });
-
-        return deferred.promise;
-      },
-
-      getDDPoint: function (fromPoint) {
-        var def = new Deferred();
-        var webMerc = new EsriSpatialReference(3857);
-        if (webMercatorUtils.canProject(fromPoint, webMerc)) {
-          // if the point is in geographics or can be projected to geographics do so
-          def.resolve(webMercatorUtils.webMercatorToGeographic(webMercatorUtils.project(fromPoint, webMerc)));
-        } else {
-          // if the point is NOT geographics and can NOT be projected to geographics
-          // Find the most appropriate geo transformation and project the point to geographic
-          var args = {
-            url: this._gs.url + '/findTransformations',
-            content: {
-              f: 'json',
-              inSR: fromPoint.spatialReference.wkid,
-              outSR: 4326,
-              extentOfInterest: JSON.stringify(this.map.extent)
-            },
-            handleAs: 'json',
-            callbackParamName: 'callback'
-          };
-          new EsriRequest(args, {
-              usePost: false
-            }).then(lang.hitch(this, function (response) {
-              var transformations = response && response.transformations ?
-                response.transformations : undefined;
-              var wkid = transformations && transformations.length > 0 ?
-                transformations[0].wkid : undefined;
-              var pp = new EsriProjectParameters();
-              pp.outSR = new EsriSpatialReference(4326);
-              pp.geometries = [fromPoint];
-              pp.transformForward = true;
-              pp.transformation = wkid;
-              this._gs.project(pp, lang.hitch(this, function (r) {
-                def.resolve(r[0]);
-              }), function (err) {
-                def.reject(err);
-              });
-            }), lang.hitch(this, function (err) {
-            def.reject(err);
-          }));
-        }
-        return def;
-      },
-
-      _getSymbolFont: function(textFontSizeDijit){
-        var a = Font.STYLE_ITALIC, b = Font.VARIANT_NORMAL, c = Font.WEIGHT_NORMAL;
-        var fontSize = this._getMeasureFontSize(textFontSizeDijit);
-        return new Font(fontSize, a, b, c, "Arial Unicode MS");
-      },
-
-      _getMeasureFontSize: function(textFontSizeDijit){
-        return parseInt(textFontSizeDijit.get('value'), 10) + 'px';
-      },
-
-      _addLocationMeasure: function(geometry, graphic){
-        if(!this.domNode){
-          return;
-        }
-        //convert unit
-        var unitInfo = this._getLocationUnitInfo(this.locationUnitSelect.value);
-        var abbr = unitInfo.abbrTag, format = unitInfo.format;
-        this.getDDPoint(geometry).then(lang.hitch(this, function(mapPoint) {
-          this.getCoordValues(mapPoint, abbr, 4).then(lang.hitch(this, function (r) {
-              var location = this.getCoordByFormat(abbr, r[0], format);
-              var symbolFont = this._getSymbolFont(this.locationTextFontSize);
-              var fontColor = this.locationTextColor.getColor();//.toRgba();
-
-              // var label = this.nls.locationLabel;
-              // var locationText = label.replace('${value}', location);
-              var locationText = location;
-
-              var textSymbol = new TextSymbol(locationText, symbolFont, fontColor);
-              var _pointSymbol = this._getPointSymbol();
-              var symbolHeight = _pointSymbol.height ? _pointSymbol.height : _pointSymbol.size; //for picturemarkersymbol & simplemarkersymbol
-              var txtOffsetY = symbolHeight + _pointSymbol.yoffset - 10;
-              var labelGraphic = new Graphic(geometry, textSymbol.setOffset(0, txtOffsetY ), null, null);
-              this._pushAddOperation([graphic, labelGraphic]);
-            }),lang.hitch(this, function (err) {
-              console.log(err);
-            })
-         );
-        }), lang.hitch(this, function(err) {
-              console.error(err);
-            }
-        ));
-      },
-
       _addLineMeasure:function(geometry, graphic){
         this._getLengthAndArea(geometry, false).then(lang.hitch(this, function(result){
           if(!this.domNode){
             return;
           }
           var length = result.length;
-          var symbolFont = this._getSymbolFont(this.distanceTextFontSize);
-          var fontColor = this.distanceTextColor.getColor();
+          var a = Font.STYLE_ITALIC;
+          var b = Font.VARIANT_NORMAL;
+          var c = Font.WEIGHT_BOLD;
+          var symbolFont = new Font("16px", a, b, c, "Courier");
+          var fontColor = new Color([0, 0, 0, 1]);
           var ext = geometry.getExtent();
           var center = ext.getCenter();
 
           var unit = this.distanceUnitSelect.value;
           var abbr = this._getDistanceUnitInfo(unit).label;
           var localeLength = jimuUtils.localizeNumber(length.toFixed(1));
-          var label = this.nls.distanceLabel;
-          var lengthText = label.replace('${value}', localeLength).replace('${unit}', abbr);
+          var lengthText = localeLength + " " + abbr;
 
           var textSymbol = new TextSymbol(lengthText, symbolFont, fontColor);
           var labelGraphic = new Graphic(center, textSymbol, null, null);
@@ -959,45 +538,36 @@ define([
         }));
       },
 
-      _getLabelGraphic:function(label, unitAbbr, value, center, symbolFont, fontColor, offsetY){
-        var localeValue = jimuUtils.localizeNumber(value.toFixed(1));
-        var text = label.replace('${value}', localeValue).replace('${unit}', unitAbbr);
-        var textSymbol = new TextSymbol(text, symbolFont, fontColor);
-        var textSymbolNew = textSymbol.setOffset(0, offsetY);
-        var labelGraphic = new Graphic(center, textSymbolNew, null, null);
-        return labelGraphic;
-      },
-
-      _addPolygonMeasure:function(geometry, graphic, ifArea, ifLength){
+      _addPolygonMeasure:function(geometry, graphic){
         this._getLengthAndArea(geometry, true).then(lang.hitch(this, function(result){
           if(!this.domNode){
             return;
           }
+          var length = result.length;
+          var area = result.area;
+
+          var a = Font.STYLE_ITALIC;
+          var b = Font.VARIANT_NORMAL;
+          var c = Font.WEIGHT_BOLD;
+          var symbolFont = new Font("16px", a, b, c, "Courier");
+          var fontColor = new Color([0, 0, 0, 1]);
           var ext = geometry.getExtent();
           var center = ext.getCenter();
 
-          var graphics = [graphic];
-          if(ifArea){
-            var offsetY1 = ifLength? 5 : -5;
-            var unitAbbr1 = this._getAreaUnitInfo(this.areaUnitSelect.value).label;
-            var areaLabel = this.nls.areaLabel;
-            var symbolFont1 = this._getSymbolFont(this.areaTextFontSize);
-            var fontColor1 = this.areaTextColor.getColor();
-            var labelGraphic1 = this._getLabelGraphic(areaLabel, unitAbbr1, result.area, center,
-                symbolFont1, fontColor1, offsetY1);
-            graphics.push(labelGraphic1);
-          }
-          if(ifLength){
-            var offsetY2 = ifArea? -15 : -5;
-            var unitAbbr2 = this._getDistanceUnitInfo(this.distanceUnitSelect.value).label;
-            var distanceLabel = this.nls.distanceLabel;
-            var symbolFont2 = this._getSymbolFont(this.distanceTextFontSize);
-            var fontColor2 = this.distanceTextColor.getColor();
-            var labelGraphic2 = this._getLabelGraphic(distanceLabel, unitAbbr2, result.length, center,
-                symbolFont2, fontColor2, offsetY2);
-            graphics.push(labelGraphic2);
-          }
-          this._pushAddOperation(graphics);
+          var areaUnit = this.areaUnitSelect.value;
+          var areaAbbr = this._getAreaUnitInfo(areaUnit).label;
+          var localeArea = jimuUtils.localizeNumber(area.toFixed(1));
+          var areaText = localeArea + " " + areaAbbr;
+
+          var lengthUnit = this.distanceUnitSelect.value;
+          var lengthAbbr = this._getDistanceUnitInfo(lengthUnit).label;
+          var localeLength = jimuUtils.localizeNumber(length.toFixed(1));
+          var lengthText = localeLength + " " + lengthAbbr;
+
+          var text = areaText + "    " + lengthText;
+          var textSymbol = new TextSymbol(text, symbolFont, fontColor);
+          var labelGraphic = new Graphic(center, textSymbol, null, null);
+          this._pushAddOperation([graphic, labelGraphic]);
         }), lang.hitch(this, function(err){
           if(!this.domNode){
             return;
@@ -1042,7 +612,7 @@ define([
           var areas = geodesicUtils.geodesicAreas([geometry], esriAreaUnit);
           var polyline = this._getPolylineOfPolygon(geometry);
           lengths = geodesicUtils.geodesicLengths([polyline], esriLengthUnit);
-          result.area = Math.abs(areas[0]); //Convert area's result to Absolute value for the reason of ellipse's negative value.
+          result.area = areas[0];
           result.length = lengths[0];
         }else{
           lengths = geodesicUtils.geodesicLengths([geometry], esriLengthUnit);
@@ -1113,43 +683,43 @@ define([
 
       _getGeometryServiceUnitByEsriUnit: function(unit){
         var gsUnit = -1;
-        switch (unit) {
-          case esriUnits.KILOMETERS:
-            gsUnit = GeometryService.UNIT_KILOMETER;
-            break;
-          case esriUnits.MILES:
-            gsUnit = GeometryService.UNIT_STATUTE_MILE;
-            break;
-          case esriUnits.METERS:
-            gsUnit = GeometryService.UNIT_METER;
-            break;
-          case esriUnits.FEET:
-            gsUnit = GeometryService.UNIT_FOOT;
-            break;
-          case esriUnits.YARDS:
-            gsUnit = GeometryService.UNIT_INTERNATIONAL_YARD;
-            break;
-          case esriUnits.SQUARE_KILOMETERS:
-            gsUnit = GeometryService.UNIT_SQUARE_KILOMETERS;
-            break;
-          case esriUnits.SQUARE_MILES:
-            gsUnit = GeometryService.UNIT_SQUARE_MILES;
-            break;
-          case esriUnits.ACRES:
-            gsUnit = GeometryService.UNIT_ACRES;
-            break;
-          case esriUnits.HECTARES:
-            gsUnit = GeometryService.UNIT_HECTARES;
-            break;
-          case esriUnits.SQUARE_METERS:
-            gsUnit = GeometryService.UNIT_SQUARE_METERS;
-            break;
-          case esriUnits.SQUARE_FEET:
-            gsUnit = GeometryService.UNIT_SQUARE_FEET;
-            break;
-          case esriUnits.SQUARE_YARDS:
-            gsUnit = GeometryService.UNIT_SQUARE_YARDS;
-            break;
+        switch(unit){
+        case esriUnits.KILOMETERS:
+          gsUnit = GeometryService.UNIT_KILOMETER;
+          break;
+        case esriUnits.MILES:
+          gsUnit = GeometryService.UNIT_STATUTE_MILE;
+          break;
+        case esriUnits.METERS:
+          gsUnit = GeometryService.UNIT_METER;
+          break;
+        case esriUnits.FEET:
+          gsUnit = GeometryService.UNIT_FOOT;
+          break;
+        case esriUnits.YARDS:
+          gsUnit = GeometryService.UNIT_INTERNATIONAL_YARD;
+          break;
+        case esriUnits.SQUARE_KILOMETERS:
+          gsUnit = GeometryService.UNIT_SQUARE_KILOMETERS;
+          break;
+        case esriUnits.SQUARE_MILES:
+          gsUnit = GeometryService.UNIT_SQUARE_MILES;
+          break;
+        case esriUnits.ACRES:
+          gsUnit = GeometryService.UNIT_ACRES;
+          break;
+        case esriUnits.HECTARES:
+          gsUnit = GeometryService.UNIT_HECTARES;
+          break;
+        case esriUnits.SQUARE_METERS:
+          gsUnit = GeometryService.UNIT_SQUARE_METERS;
+          break;
+        case esriUnits.SQUARE_FEET:
+          gsUnit = GeometryService.UNIT_SQUARE_FEET;
+          break;
+        case esriUnits.SQUARE_YARDS:
+          gsUnit = GeometryService.UNIT_SQUARE_YARDS;
+          break;
         }
         return gsUnit;
       },
@@ -1233,18 +803,10 @@ define([
 
       _syncGraphicsToLayers: function(){
         /*global isRTL*/
-        if(this._pointLayer){
-          this._pointLayer.clear();
-        }
-        if(this._polylineLayer){
-          this._polylineLayer.clear();
-        }
-        if(this._polygonLayer){
-          this._polygonLayer.clear();
-        }
-        if(this._labelLayer){
-          this._labelLayer.clear();
-        }
+        this._pointLayer.clear();
+        this._polylineLayer.clear();
+        this._polygonLayer.clear();
+        this._labelLayer.clear();
         var graphics = this._getAllGraphics();
         array.forEach(graphics, lang.hitch(this, function(g){
           var graphicJson = g.toJson();

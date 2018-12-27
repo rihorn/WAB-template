@@ -7,12 +7,9 @@ define(
     "jimu/BaseWidgetSetting",
     'esri/geometry/Extent',
     'jimu/dijit/ImageChooser',
-    './ExtentAndLayersChooser',
-    "jimu/dijit/LayerChooserFromMapLite",
+    'jimu/dijit/ExtentChooser',
     'jimu/utils',
-    "../utils",
-    "dojo/text!./Edit.html",
-    'jimu/dijit/CheckBox'
+    "dojo/text!./Edit.html"
   ],
   function(
     declare,
@@ -24,11 +21,8 @@ define(
     Extent,
     ImageChooser,
     ExtentChooser,
-    LayerChooserFromMapLite,
-    jimuUtils,
     utils,
-    template,
-    CheckBox
+    template
     ){
     return declare([BaseWidgetSetting, _WidgetsInTemplateMixin], {
       baseClass: "jimu-Bookmark-Edit",
@@ -39,7 +33,6 @@ define(
       itemId: null,
       isInWebmap: false,
       mapOptions: null,
-      layerOptions: null,//layers visible
 
       postCreate: function(){
         this.inherited(arguments);
@@ -51,111 +44,48 @@ define(
           goldenWidth: 100,
           goldenHeight: 60
         });
-
-        //save layer
-        this.saveLayers = new CheckBox({
-          label: this.nls.savelayers,
-          checked: false
-        }, this.saveLayers);
-        this.own(on(this.saveLayers, 'change', lang.hitch(this, '_changeSetBtnStyle')));
-
-        this.own(on(this.displayName, 'change', lang.hitch(this, '_onNameChange')));
-        this.own(on(this.displayName, "keyUp", lang.hitch(this, '_onNameChange')));
+        this.own(on(this.displayName, 'Change', lang.hitch(this, '_onNameChange')));
         html.addClass(this.imageChooser.domNode, 'img-chooser');
         html.place(this.imageChooser.domNode, this.imageChooserBase, 'replace');
       },
 
-      startup: function(){
-        if(this.displayName &&
-          this.displayName.focusNode && this.displayName.focusNode.focus){
-          this.displayName.focusNode.focus();//auto focus
-        }
-
-        this.inherited(arguments);
-      },
-
-      _changeSetBtnStyle: function () {
-        var isSaveLayerSelected = this.saveLayers.getValue();
-        if (isSaveLayerSelected) {
-          html.removeClass(this.layerChooserContainer, "hide");
-        } else {
-          html.addClass(this.layerChooserContainer, "hide");
-        }
-      },
-
       setConfig: function(bookmark){
+        var args = {
+          portalUrl : this.portalUrl,
+          itemId: this.itemId
+        };
+
         if (bookmark.displayName){
           this.displayName.set('value', bookmark.displayName);
         }
-
+        //if (bookmark.name){
+        //  this.rawName = bookmark.name;
+        //}
         if (bookmark.thumbnail){
-          var thumbnailValue = jimuUtils.processUrlInWidgetConfig(bookmark.thumbnail, this.folderUrl);
+          var thumbnailValue = utils.processUrlInWidgetConfig(bookmark.thumbnail, this.folderUrl);
           this.imageChooser.setDefaultSelfSrc(thumbnailValue);
         }
-        // if (bookmark.extent){
-        //   args.initExtent = new Extent(bookmark.extent);
-        // }
-        // if(this.mapOptions && this.mapOptions.lods){
-        //   args.lods = this.mapOptions.lods;
-        // }
+        if (bookmark.extent){
+          args.initExtent = new Extent(bookmark.extent);
+        }
+        if(this.mapOptions && this.mapOptions.lods){
+          args.lods = this.mapOptions.lods;
+        }
         if(bookmark.isInWebmap){
           this.isInWebmap = true;
         }
 
-        //add from 5.3
-        if ("undefined" === typeof bookmark.isSaveExtent) {
-          bookmark.isSaveExtent = true;
-        }
-        //utils.setCheckboxWithoutEvent(this.saveExtent, bookmark.isSaveExtent);
-
-        if ("undefined" === typeof bookmark.isSaveLayers) {
-          bookmark.isSaveLayers = false;
-        }
-        utils.setCheckboxWithoutEvent(this.saveLayers, bookmark.isSaveLayers);
-        this._changeSetBtnStyle();
-
-        if (bookmark.layerOptions) {
-          this.layerOptions = bookmark.layerOptions;
-          // this.layersChooser.setLayers(this.layerOptions);
-        }
-
-        if(!this.extentChooser){
-          var args = {
-            portalUrl: this.portalUrl,
-            itemId: this.itemId
-          };
-          if (this.config && this.config.bookmark.extent){
-            args.initExtent = new Extent(bookmark.extent);
-          }
-          if(this.mapOptions && this.mapOptions.lods){
-            args.lods = this.mapOptions.lods;
-          }
-          this.extentChooser = new ExtentChooser(args, this.extentChooserNode);
-          //this.own(on(this.extentChooser, 'extentChange', lang.hitch(this, this._onExtentChange)));
-          this.extentChooser.createMap().then(lang.hitch(this, function (map){
-            this.layersChooser = new LayerChooserFromMapLite({
-              map: map,
-              layerState: this.layerOptions,
-              layerStateController: LayerChooserFromMapLite.layerVisibilityStateController
-            }, this.layerChooser);
-          }));
-        }
+        this.extentChooser = new ExtentChooser(args, this.extentChooserNode);
+        this.own(on(this.extentChooser, 'extentChange', lang.hitch(this, this._onExtentChange)));
       },
 
       getConfig: function(){
-        //var isSaveLayers = this.saveLayers.getValue();
-        var layerOptions = this.layersChooser.getState();//set layers visibility
-
         var bookmark = {
           displayName: this.displayName.get("value"),
           name: this.displayName.get("value"),
           extent: this.extentChooser.getExtent(),
           thumbnail: this.imageChooser.imageData,
-          isInWebmap: this.isInWebmap,
-          //add from 5.3
-          //isSaveExtent: this.saveExtent.getValue(),
-          isSaveLayers: this.saveLayers.getValue(),
-          layerOptions: layerOptions
+          isInWebmap: this.isInWebmap
         };
         return bookmark;
       },

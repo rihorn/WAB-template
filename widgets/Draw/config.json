@@ -1,11 +1,4 @@
 {
-  "locationUnits": [{
-    "unit": "DEGREES",
-    "abbr": "dd"
-  }, {
-    "unit": "DEGREE-MINUTE-SECOND",
-    "abbr": "dms"
-  }],
   "distanceUnits": [{
     "unit": "KILOMETERS",
     "abbr": "km"
@@ -21,9 +14,6 @@
   }, {
     "unit": "YARDS",
     "abbr": "yd"
-  }, {
-    "unit": "NAUTICAL_MILES",
-    "abbr": "nm"
   }],
   "areaUnits": [{
     "unit": "SQUARE_KILOMETERS",

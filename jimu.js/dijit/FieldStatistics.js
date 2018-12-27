@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,15 +78,15 @@ define(['dojo/_base/declare',
       this._statisticsPopup = new Popup({
         titleLabel: this.nls.statistics,
         content: this.domNode,
-        width: 270,
-        height: 265,
+        width: 400,
+        height: 320,
         buttons: [{
           label: this.nls.ok
         }]
       });
       this.showContent(statInfo);
       // this class come from api.
-      // html.addClass(this._statisticsPopup.domNode, "esri-feature-table-dialog");
+      html.addClass(this._statisticsPopup.domNode, "esri-feature-table-dialog");
     },
 
     _showOneFieldStatContent: function(statInfo, container){
@@ -106,23 +106,15 @@ define(['dojo/_base/declare',
       }));
     },
 
-    _getFieldAliaseFromStatInfo: function(fieldName) {
-      var featureSet = this.statInfo.featureSet;
-      var fieldAliases = featureSet && featureSet.fieldAliases;
-      var alias;
-      if (fieldAliases && typeof fieldAliases[fieldName] !== 'undefined') {
-        alias = fieldAliases[fieldName];
-      } else {
-        if (this.statInfo.layer) {
-          var flabels = array.filter(this.statInfo.layer.fields, function(f) {
-            return f.name === fieldName;
-          });
-          alias = flabels[0] ? flabels[0].alias : '';
-        } else {
-          alias = fieldName;
-        }
+    _getFieldAliaseFromStatInfo: function(fieldName){
+      if(this.statInfo.layer){
+        var flabels = array.filter(this.statInfo.layer.fields, function(f) {
+          return f.name === fieldName;
+        });
+        return flabels[0]? flabels[0].alias: '';
+      }else{
+        return this.statInfo.featureSet.fieldAliases? this.statInfo.featureSet.fieldAliases[fieldName]: fieldName;
       }
-      return alias;
     },
 
     _createFieldDom: function(container){
@@ -142,7 +134,7 @@ define(['dojo/_base/declare',
             };
           })),
           style: {
-            width: '150px'
+            width: '200px'
           }
         });
         this.own(on(fieldSelect, 'change', lang.hitch(this, function(fieldName){

@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,381 +20,416 @@ define([
   'dojo/_base/array',
   'dojo/_base/html',
   'jimu/BaseWidget',
-  "dojo/query",
   'dojo/on',
-  'dojo/Deferred',
-  //'esri/SpatialReference',
-  //'./ItemNode',
-  "./HeadBar",
-  "./WebmapBookmarks",
-  "./CustomBookmarks",
-  //'jimu/utils',
-  './utils',
+  'dojo/aspect',
+  'dojo/string',
+  'esri/SpatialReference',
+  './ImageNode',
+  'jimu/dijit/TileLayoutContainer',
+  'jimu/utils',
   'libs/storejs/store'
 ],
-  function (declare, lang, array, html, BaseWidget, query, on, Deferred,
-    /*SpatialReference, ItemNode, */HeadBar, WebmapBookmarks, CustomBookmarks,
-    /*jimuUtils, */utils, store) {
-    return declare([BaseWidget], {
-      //these two properties is defined in the BaseWidget
-      baseClass: 'jimu-widget-bookmark dojoDndSource dojoDndTarget dojoDndContainer',
-      name: 'Bookmark',
-      //bookmarks: Object[]
-      //    all of the bookmarks, the format is the same as the config.json
-      bookmarks: [],
-      //_init_editing: false,
-      jimuNls: null,
+function(declare, lang, array, html, BaseWidget, on, aspect, string,
+  SpatialReference, ImageNode, TileLayoutContainer, utils, store) {
+  return declare([BaseWidget], {
+    //these two properties is defined in the BaseWidget
+    baseClass: 'jimu-widget-bookmark',
+    name: 'Bookmark',
 
-      postMixInProperties: function () {
-        this.jimuNls = window.jimuNls;
-      },
+    //bookmarks: Object[]
+    //    all of the bookmarks, the format is the same as the config.json
+    bookmarks: [],
 
-      startup: function () {
-        this.inherited(arguments);
+    //currentIndex: int
+    //    the current selected bookmark index
+    currentIndex: -1,
 
-        //TODO ======================= for test only ===============================
-        //this.config = utils._testUpdateOldConfig();
-        //this.bookmarks = this.config.bookmarks2D;
-        //this._saveAllToLocalCache();
-        //TODO ======================= for test only ===============================
+    //use this flag to control delete button
+    _canDelete: false,
 
-        //check wheather update config
-        if (utils.isConfigBefore5_3(this.config)) {
-          utils.setDefaultConfigForUpdate(this.config);//set default config
-          //but no completeUpdateConfig() in widget.js, beacuse widget can't save config
+    //use this flag to control play button
+    //play function work only in 3D map
+    _canPlay: false,
+
+    //the status can be: stop, playing, none
+    _playStatus: 'none',
+
+    startup: function(){
+      // summary:
+      //    this function will be called when widget is started.
+      // description:
+      //    see dojo's dijit life cycle.
+      this.inherited(arguments);
+
+      this.bookmarkList = new TileLayoutContainer({
+        strategy: 'fixWidth',
+        itemSize: {width: 100, height: 92}, //image size is: 100*60,
+        hmargin: 15,
+        vmargin: 5
+      }, this.bookmarkListNode);
+
+      if(this.appConfig.map['3D']){
+        html.setStyle(this.btnPlay, 'display', '');
+        aspect.after(this.map, 'onCameraChangeEnd', lang.hitch(this, this._onFlytoEnd), true);
+        aspect.after(this.map, 'onCameraChangeBreak', lang.hitch(this, this._onFlytoBreak), true);
+      }else{
+        html.setStyle(this.btnPlay, 'display', 'none');
+      }
+      this.bookmarkList.startup();
+
+      this.own(on(this.bookmarkName, 'keydown', lang.hitch(this, function(evt){
+        var keyNum = evt.keyCode !== undefined ? evt.keyCode : evt.which;
+        if (keyNum === 13) {
+          this._onAddBtnClicked();
         }
+      })));
+    },
 
-        //HeadBar
-        this.headBar = new HeadBar({
-          map: this.map,
-          nls: this.nls,
-          bookmarksContainer: this.bookmarksContainer,
-          editMenuContainer: this.editMenuContainer,
-          editable: this.config.editable,
-          layout: this.config.layout
-        }, this.headBarContainer);
-        this.headBar.startup();
-        this.own(on(this.headBar, 'add', lang.hitch(this, function () {
-          this.customBookmarks.add();
-        })));
-        this.own(on(this.headBar, 'filter-change', lang.hitch(this, function (value) {
-          this.webmapBookmarks.filter(value);
-          this.customBookmarks.filter(value);
-        })));
-        // this.own(on(this.headBar, 'layout-cards', lang.hitch(this, function () {
-        //   this.bookmarks.forEach(lang.hitch(this, function (bookmark) {
-        //     ItemNode.removeFloatLeading(bookmark);
-        //   }));
-        // })));
-        // this.own(on(this.headBar, 'layout-list', lang.hitch(this, function () {
-        //   this.bookmarks.forEach(lang.hitch(this, function (bookmark) {
-        //     ItemNode.addFloatLeading(bookmark);
-        //   }));
-        // })));
-
-        //webmap area
-        this.webmapBookmarks = new WebmapBookmarks({
-          nls: this.nls,
-          map: this.map,
-          folderUrl: this.folderUrl,
-          config: this.config
-        }, this.webmapBookmarksContainer);
-        this.webmapBookmarks.startup();
-
-        //custom area
-        this.customBookmarks = new CustomBookmarks({
-          nls: this.nls,
-          map: this.map,
-          folderUrl: this.folderUrl,
-          widgetId: this.id,
-          config: this.config
-        }, this.customBookmarksContainer);
-        this.customBookmarks.startup();
-        this.own(on(this.customBookmarks, 'sort', lang.hitch(this, '_onSort')));
-        this.own(on(this.customBookmarks, 'change-img', lang.hitch(this, '_onChangeImg')));
-        this.own(on(this.customBookmarks, 'delete', lang.hitch(this, '_onDelete')));
-        this.own(on(this.customBookmarks, 'label-blur', lang.hitch(this, '_onLabelBlur')));
-        this.own(on(this.customBookmarks, 'added', lang.hitch(this, '_onAdded')));
-
-        this.resize();
-      },
-
-      _onLabelBlur: function (bookmarks) {
-        this.onBookmarksChange(bookmarks);
-      },
-      _onSort: function (bookmarks) {
-        this.onBookmarksChange(bookmarks);
-      },
-      _onChangeImg: function (bookmarks) {
-        this.onBookmarksChange(bookmarks);
-      },
-      _onDelete: function (bookmarks) {
-        this.onBookmarksChange(bookmarks);
-      },
-      _onAdded: function (bookmarks) {
-        this.onBookmarksChange(bookmarks);
-      },
-      onBookmarksChange: function (bookmarks) {
-        this._saveAllToLocalCache(bookmarks);
-        this.resize();
-      },
-
-      onOpen: function () {
-        //1 webmap
-        this.webmapBookmarks.refresh();//refresh when opened
-        //2 custom
-        var bookmarksInCache = this._getLocalCache();
-        this.customBookmarks.refresh(bookmarksInCache);
-
-        this.resize();
-      },
-
-      destroy: function () {
-        if (this.headBar) {
-          this.headBar.destroy();
-          this.headBar = null;
-        }
-        if (this.webmapBookmarks) {
-          this.webmapBookmarks.destroy();
-          this.webmapBookmarks = null;
-        }
-        if (this.customBookmarks) {
-          this.customBookmarks.destroy();
-          this.customBookmarks = null;
-        }
-
-        this.inherited(arguments);
-      },
-
-      onMinimize: function () {
-        this.resize();
-      },
-      onMaximize: function () {
-        this.resize();
-      },
-
-      //********************  responsive  ************************/
-      resize: function () {
-        if (window.appInfo.isRunInMobile) {
-          html.addClass(this.domNode, "mobile");
-        } else {
-          html.removeClass(this.domNode, "mobile");
-        }
-        //this.headBar.toogleMobileDisplay(window.appInfo.isRunInMobile);
-        this.customBookmarks.toggleMobile(window.appInfo.isRunInMobile);
-
-        var parentNode = this.domNode.parentElement || this.domNode.parentNode;
-        //put scroller aside
-        if (parentNode) {
-          if (window.isRTL) {
-            html.setStyle(parentNode, "padding-left", "0");
-          } else {
-            html.setStyle(parentNode, "padding-right", "0");
-          }
-        }
-
-        this._getParentSize(parentNode).then(lang.hitch(this, function (parentSize) {
-          //var itemSize = this.getItemSize();
-          //this.setContainerWidth(parentSize, itemSize);
-          // this.items.forEach(lang.hitch(this, function(item) {
-          //   this.setItemPosition(item, itemSize);
-          // }));
-          var dartThemeRuler = 280 - 1;
-          var foldableThemeRuler = 330;
-          var container = this.domNode;
-          if(!container){
-            return;
-          }
-          var thumbnailWidth = 100;
-
-          if (parentSize.w >= dartThemeRuler && parentSize.w < foldableThemeRuler - 1) {
-            this._setNodeWidths(container, 130, thumbnailWidth);
-          } else if (Math.abs(parentSize.w - foldableThemeRuler) <= 1) {
-            this._setNodeWidths(container, thumbnailWidth, thumbnailWidth);
-          } else {
-            var box = html.getMarginBox(container);
-            var width = box.w - 20;
-            var column = parseInt(width / thumbnailWidth, 10);
-            if (column > 0) {
-              var margin = width % thumbnailWidth;
-              var addWidth = parseInt(margin / column, 10);
-              this._setNodeWidths(container, thumbnailWidth + addWidth, thumbnailWidth);
-            }
-          }
-
-          this.setContainerHeight(parentSize, parentNode);
-        }));
-      },
-      _setNodeWidths: function (container, width, thumbnailWidth) {
-        var minWidth = thumbnailWidth + 4;
-        if (width < minWidth) {
-          width = minWidth;
-        }
-        query('.jimu-img-node', container).forEach(function (node) {
-          html.setStyle(node, 'width', width + 'px');
-        });
-      },
-
-      getItemSize: function () {
-        var size = {};
-        size.width = this.itemSize.width;
-        size.height = this.itemSize.height;
-        return size;
-      },
-
-      setContainerWidth: function (parentSize, itemSize) {
-        var scrollerWidth = 20;
-
-        var colsNum = Math.floor((parentSize.w) / (itemSize.width + 2 * this.hmargin));
-        var totalWidth = (itemSize.width + 2 * this.hmargin) * colsNum + scrollerWidth;
-        html.setStyle(this.domNode, {
-          width: totalWidth + "px",
-          margin: "0px auto"//move to center
-        });
-      },
-      setContainerHeight: function (parentSize, parentNode) {
-        var headerH = this._getDomHeight(".header", parentNode);
-        //var errorH = this._getDomHeight(".error", parentNode);
-        //var footerH = this._getDomHeight(".footer", parentNode);
-        var usedH = headerH;// + errorH + footerH;
-
-        html.setStyle(this.bookmarksContainer, {
-          height: parentSize.h - usedH + "px"
-        });
-      },
-
-      setItemPosition: function (item, itemSize) {
-        var itemStyle = {
-          position: 'relative',
-          margin: this.vmargin + "px " + this.hmargin + "px"
-        };
-        if (itemSize.width >= 0) {
-          itemStyle.width = itemSize.width + 'px';
-        }
-        if (itemSize.height >= 0) {
-          itemStyle.height = itemSize.height + 'px';
-        }
-        html.setStyle(item.domNode, itemStyle);
-        html.addClass(item.domNode, "jimu-float-leading");
-      },
-
-      _getDomHeight: function (className, sope) {
-        var h = 0;
-        var dom = query(className, sope)[0];
-        if (dom) {
-          var domSize = html.getMarginBox(dom);
-          if (domSize && domSize.h) {
-            h = domSize.h;
-          }
-        }
-        return h;
-      },
-      //delay get height
-      _getParentSize: function (parentNode) {
-        var def = new Deferred();
-        setTimeout(lang.hitch(this, function () {
-          var parentSize = html.getMarginBox(parentNode);
-          var padding = html.getPadExtents(parentNode);
-          parentSize.h = parentSize.h - padding.h;
-
-          def.resolve(parentSize);
-        }), 10);
-        return def;
-      },
-
-      //********************  LocalCache  ************************/
-      _saveAllToLocalCache: function (bookmarks) {
-        var keys = [];
-        //clean
-        array.forEach(store.get(utils.getKey(this.id)), function (bName) {
-          store.remove(bName);
-        }, this);
-        //set
-        array.forEach(bookmarks, function (bookmark) {
-          var key = utils.getKey(this.id) + '.' + bookmark.displayName;
-          keys.push(key);
-
-          var bookmarkData = lang.mixin({}, bookmark);
-          if (bookmarkData.itemNode) {
-            delete bookmarkData.itemNode;
-          }
-          if (bookmarkData._uID) {
-            delete bookmarkData._uID;
-          }
-
-          try {
-            store.set(key, bookmarkData);
-          } catch (error) {
-            alert("localcache store error");//TODO
-          }
-        }, this);
-        //set indexs
-        store.set(utils.getKey(this.id), keys);
-      },
-      _getLocalCache: function () {
-        var oldCacheBefore5_3 = this._getCacheByKeys(this._getOldKey());
-        //oldCacheBefore5_3 = utils._testSetOldCacheBookmark();//TODO test only
-        var cache = this._getCacheByKeys(utils.getKey(this.id));
-        var updatedKey = this._getCacheUpdatedKey();
-        //need to update old cache, keep them(do not delete) after updated
-        if (0 === cache.length && oldCacheBefore5_3.length > 0 && true !== store.get(updatedKey)) {
-          //only old cache, and have not updated(independent of config update)
-          cache = utils.filterBookmarkFromTarget(oldCacheBefore5_3, this.config.bookmarks2D);//filter old cache
-          this._saveAllToLocalCache(cache);//update immediately, so cache.length will >0 next time
-          store.set(updatedKey, true);//flag, for delete all new cache
-        }
-
-        return cache;
-      },
-      _getCacheUpdatedKey: function () {
-        return utils.getKey(this.id) + ".BookmarkCacheUpdated";
-      },
-
-      //keys = oldKey OR newKey
-      _getCacheByKeys: function (keys) {
-        var cache = [];
-        if (!store.get(keys)) {
-          //no cache
-        } else {
-          array.forEach(store.get(keys), function (bName) {
-            if (bName.startWith(keys)) {
-              var bookmark = store.get(bName);
-              cache.push(bookmark);
-            }
-          }, this);
-        }
-
-        return cache;
-      },
-      // //new keys after 5.3
-      // _getKey: function () {
-      //   var prefix = "Bookmark.2D";
-      //   // if (this.appConfig.map['3D']) {
-      //   //   prefix = this.name + '.3D';
-      //   // } else {
-      //   //   prefix = this.name + '.2D';
-      //   // }
-      //   var appId = encodeURIComponent(jimuUtils.getAppIdFromUrl());
-      //   var widgetId = this.id;
-      //   //like: Bookmark.2D.appId.widgetId
-      //   return prefix + "." + appId + "." + widgetId;
-      // },
-      //Deprecated(old keys befor 5.3, just for update)
-      _getOldKey: function () {
-        if (this.appConfig.map['3D']) {
-          return this.name + '.3D';
-        } else {
-          return this.name + '.2D';
+    onOpen: function(){
+      // summary:
+      //    see description in the BaseWidget
+      // description:
+      //    this function will check local cache first. If there is local cache,
+      //    use the local cache, or use the bookmarks configured in the config.json
+      var localBks = this._getLocalCache();
+      if(localBks.length > 0){
+        this.bookmarks = localBks;
+      }else{
+        if(this.appConfig.map['3D']){
+          this.bookmarks = lang.clone(this.config.bookmarks3D);
+        }else{
+          this.bookmarks = lang.clone(this.config.bookmarks2D);
         }
       }
-      /*
-      _cleanLocalCache: function () {
-        var key = this._getKeysKey();
-        for (var p in store.getAll()) {
-          if (p.startWith(key)) {
-            store.remove(p);
-          }
+
+      if(this.bookmarks.length === 0){
+        this._readBookmarksInWebmap();
+      }
+      this.displayBookmarks();
+    },
+
+    onClose: function(){
+      // summary:
+      //    see description in the BaseWidget
+      this.bookmarks = [];
+      this.currentIndex = -1;
+    },
+
+    onMinimize: function(){
+      this.resize();
+    },
+
+    onMaximize: function(){
+      this.resize();
+    },
+
+    resize: function(){
+      if(this.bookmarkList){
+        this.bookmarkList.resize();
+      }
+    },
+
+    destroy: function(){
+      this.bookmarkList.destroy();
+      this.inherited(arguments);
+    },
+
+    displayBookmarks: function() {
+      this._processDuplicateName(this.bookmarks);
+
+      // summary:
+      //    remove all and then add
+      var items = [];
+      this.bookmarkList.empty();
+      array.forEach(this.bookmarks, function(bookmark) {
+        items.push(this._createBookMarkNode(bookmark));
+      }, this);
+
+      this.bookmarkList.addItems(items);
+      this._switchDeleteBtn();
+      this._switchPlayBtn();
+      this.resize();
+    },
+
+    _readBookmarksInWebmap: function(){
+      if(!this.map.itemInfo || !this.map.itemInfo.itemData ||
+        !this.map.itemInfo.itemData.bookmarks){
+        return;
+      }
+      array.forEach(this.map.itemInfo.itemData.bookmarks, function(bookmark){
+        bookmark.isInWebmap = true;
+        this.bookmarks.push(bookmark);
+      }, this);
+    },
+
+    _switchDeleteBtn: function(){
+      if(this.currentIndex > -1 && !this.bookmarks[this.currentIndex].isInWebmap){
+        html.removeClass(this.btnDelete, 'jimu-state-disabled');
+        this._canDelete = true;
+      }else{
+        html.addClass(this.btnDelete, 'jimu-state-disabled');
+        this._canDelete = false;
+      }
+    },
+
+    _switchPlayBtn: function(){
+      if(this.bookmarks.length > 1){
+        html.removeClass(this.btnPlay, 'jimu-state-disabled');
+        this._canPlay = true;
+      }else{
+        html.addClass(this.btnPlay, 'jimu-state-disabled');
+        this._canPlay = false;
+      }
+    },
+
+    _switchPlayStatus: function(status){
+      this._playStatus = status;
+      if(this._playStatus === 'none' || this._playStatus === 'stop'){
+        this.btnPlay.innerHTML = utils.stripHTML(this.nls.labelPlay);
+      }else{
+        this.btnPlay.innerHTML = utils.stripHTML(this.nls.labelStop);
+      }
+    },
+
+    _createBookMarkNode: function(bookmark) {
+      var thumbnail, node;
+
+      if(bookmark.thumbnail){
+        thumbnail = utils.processUrlInWidgetConfig(bookmark.thumbnail, this.folderUrl);
+      }else{
+        thumbnail = this.folderUrl + 'images/thumbnail_default.png';
+      }
+
+      node = new ImageNode({
+        img: thumbnail,
+        label: bookmark.displayName
+      });
+      on(node.domNode, 'click', lang.hitch(this, lang.partial(this._onBookmarkClick, bookmark)));
+
+      return node;
+    },
+
+    _getKeysKey: function(){
+      // summary:
+      //    we use className plus 2D/3D as the local storage key
+      if(this.appConfig.map['3D']){
+        return this.name + '.3D';
+      }else{
+        return this.name + '.2D';
+      }
+    },
+
+    _saveAllToLocalCache: function() {
+      // summary:
+      //    if user add/delete a bookmark, we will save all of the bookmarks into the local storage.
+
+      var keys = [];
+      //clear
+      array.forEach(store.get(this._getKeysKey()), function(bName){
+        store.remove(bName);
+      }, this);
+
+      array.forEach(this.bookmarks, function(bookmark){
+        var key = this._getKeysKey() + '.' + bookmark.displayName;
+        keys.push(key);
+        store.set(key, bookmark);
+      }, this);
+
+      store.set(this._getKeysKey(), keys);
+    },
+
+    _getLocalCache: function() {
+      var ret = [];
+      if(!store.get(this._getKeysKey())){
+        return ret;
+      }
+      array.forEach(store.get(this._getKeysKey()), function(bName){
+        if(bName.startWith(this._getKeysKey())){
+          ret.push(store.get(bName));
         }
-      }*/
-    });
+      }, this);
+      return ret;
+    },
+
+    _onFlytoEnd: function(/*jshint unused:false*/ camera){
+      // summary:
+      //    3D only.
+      if(this._playStatus === 'stop' || this._playStatus === 'none'){
+        return;
+      }
+      if(this.currentIndex + 1 === this.bookmarkList.items.length){
+        this._switchPlayStatus('stop');
+        return;
+      }
+      this.currentIndex ++;
+      this.bookmarkList.items[this.currentIndex].highLight();
+      setTimeout(lang.hitch(this, this._setCamera, this.bookmarks[this.currentIndex]),
+        this.config.stopTime);
+    },
+
+    _onFlytoBreak: function(){
+      // summary:
+      //    3D only.
+      if(this._playStatus === 'playing'){
+        this._switchPlayStatus('stop');
+      }
+    },
+
+    _onAddBtnClicked: function() {
+      if (string.trim(this.bookmarkName.value).length === 0) {
+        html.setStyle(this.errorNode, {visibility: 'visible'});
+        this.errorNode.innerHTML = utils.stripHTML(this.nls.errorNameNull);
+        return;
+      }
+      //if(array.some(this.bookmarks, function(b){
+      //  if(b.name === this.bookmarkName.value || b.displayName === this.bookmarkName.value){
+      //    return true;
+      //  }
+      //}, this)){
+      //  html.setStyle(this.errorNode, {visibility: 'visible'});
+      //  this.errorNode.innerHTML = utils.stripHTML(this.nls.errorNameExist);
+      //  return;
+      //}
+
+      this._createBookmark();
+
+      html.setStyle(this.errorNode, {visibility: 'hidden'});
+      this.errorNode.innerHTML = '&nbsp;';
+      this.bookmarkName.value = '';
+
+      this.displayBookmarks();
+    },
+
+    _onPlayBtnClicked: function(){
+      if(!this._canPlay){
+        return;
+      }
+      if(this._playStatus === 'playing'){
+        this._switchPlayStatus('stop');
+      }else{
+        this._switchPlayStatus('playing');
+        this.currentIndex = 0;
+        this._switchDeleteBtn();
+        this.bookmarkList.items[this.currentIndex].highLight();
+        this._setCamera(this.bookmarks[this.currentIndex]);
+      }
+    },
+
+    _createBookmark: function(){
+      var data, b;
+      if(this.appConfig.map['3D']){
+        data = this.map.getCamera(new SpatialReference(4326));
+        b = {
+          name: this.bookmarkName.value,
+          camera: [data.x, data.y, data.z, data.heading, data.tilt]
+        };
+      }else{
+        b = {
+          name: this.bookmarkName.value,
+          displayName: this.bookmarkName.value,
+          extent: this.map.extent.toJson()
+        };
+      }
+
+      this.bookmarks.push(b);
+      //this._createBookMarkNode(b);
+      this._saveAllToLocalCache();
+      this.resize();
+    },
+
+    _onDeleteBtnClicked: function(){
+
+      if(!this._canDelete || this.currentIndex === -1){
+        return;
+      }
+
+      array.some(this.bookmarks, function(b, i){
+        // jshint unused:false
+        if(i === this.currentIndex){
+          this.bookmarks.splice(i, 1);
+          return true;
+        }
+      }, this);
+
+      this._saveAllToLocalCache();
+
+      this.resize();
+
+      this.currentIndex = -1;
+      this.displayBookmarks();
+    },
+
+    _onBookmarkClick: function(bookmark) {
+      // summary:
+      //    set the map extent or camera, depends on it's 2D/3D map
+      array.some(this.bookmarks, function(b, i){
+        if(b.displayName === bookmark.displayName){
+          this.currentIndex = i;
+          return true;
+        }
+      }, this);
+
+      this._switchDeleteBtn();
+
+      //require the module on demand
+      if(this.appConfig.map['3D']){
+        this._setCamera(bookmark);
+      }else{
+        require(['esri/geometry/Extent'], lang.hitch(this, function(Extent){
+          var ext = bookmark.extent, sr;
+          if(ext.spatialReference){
+            sr = new SpatialReference(ext.spatialReference);
+          }else{
+            sr = new SpatialReference({ wkid:4326});
+          }
+          this.map.setExtent(new Extent(ext));
+        }));
+      }
+    },
+
+    _setCamera: function(bookmark){
+      this.map.setCamera(bookmark.camera, this.config.flyTime);
+    },
+
+    _processDuplicateName: function(bookmarks) {
+      var bookmarkArray = [];
+      var nameHash = {};
+      array.forEach(bookmarks, function(bookmark) {
+        var nameStr = bookmark.name;
+
+        if (nameStr in nameHash) {
+          nameHash[nameStr]++;
+        } else {
+          nameHash[nameStr] = 0;
+        }
+
+        if (nameHash[nameStr] > 0) {
+          //suffix name(num) first
+          var tmpDisplayName = nameStr + "(" + nameHash[nameStr] + ")";//like name(1)
+          if (tmpDisplayName in nameHash) {
+            nameHash[tmpDisplayName]++;
+            nameHash[nameStr]++;
+          } else {
+            nameHash[tmpDisplayName] = 0;
+          }
+
+          if (nameHash[tmpDisplayName] > 0) {
+            //type-in like "name(1)", turn to "name(2)"
+            bookmark.displayName = nameStr + "(" + nameHash[nameStr] + ")";
+          } else {
+            //type-in like "name", turn to "name(num)"
+            bookmark.displayName = tmpDisplayName;
+          }
+        } else {
+          //no duplicateName
+          bookmark.displayName = nameStr;
+        }
+
+        bookmarkArray.push(bookmark);
+      }, this);
+
+      bookmarks = bookmarkArray;
+    }
+
   });
+});

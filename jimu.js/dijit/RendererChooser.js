@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ define([
   'esri/renderers/ClassBreaksRenderer',
   'esri/symbols/jsonUtils',
   'esri/symbols/SimpleMarkerSymbol',
-  'jimu/dijit/CheckBox',
   'dijit/form/Select',
   'dijit/form/ComboBox',
   'dijit/form/NumberSpinner',
@@ -44,16 +43,15 @@ define([
 function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
   template, lang, html, array, on, query, gfx, Color,
   symbolUtils, rendererUtils, SimpleRenderer, UniqueValueRenderer,
-  ClassBreaksRenderer, jsonUtils, SimpleMarkerSymbol, CheckBox) {
-
+  ClassBreaksRenderer, jsonUtils, SimpleMarkerSymbol) {
   return declare([_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin], {
-    templateString: template,
+    templateString:template,
     baseClass: 'jimu-renderer-chooser',
     declaredClass: 'jimu.dijit.RendererChooser',
-    renderer: null,
-    type: null,//available values:marker,line,fill
-    nls: null,
-    fields: null,
+    renderer:null,
+    type:null,//available values:marker,line,fill
+    nls:null,
+    fields:[],
 
     //public methods:
     //getRenderer
@@ -113,31 +111,28 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
     _selectedUniqueValueTr:null,
     _selectedClassBreakTr:null,
     _isDrawing:false,
-    _showOthersSymbol: true,
     _jimuUrl:window.location.protocol + "//" + window.location.host + require.toUrl("jimu"),
 
     postMixInProperties:function(){
-      if(!this.fields){
-        this.fields = [];
-      }
       this.nls = window.jimuNls.rendererChooser;
-      this.inherited(arguments);
     },
 
     postCreate:function(){
       this.inherited(arguments);
       this._initFields();
       this.own(on(this.rendererSelect, 'change', lang.hitch(this, this._onRendererSelectChange)));
-      this.own(on(this.defaultSymbolChooser, 'change', lang.hitch(this, this._onDefaultSymbolChange)));
-      this.own(on(this.selectedSymbolChooser, 'change', lang.hitch(this, this._onSelectedSymbolChange)));
+      this.own(on(this.btnDefaultSym, 'click', lang.hitch(this, this._showDefaultSymbol)));
+      this.own(on(this.defaultSymbolChooser,
+                  'change',
+                  lang.hitch(this, this._onDefaultSymbolChange)));
+      this.own(
+        on(this.selectedSymbolChooser,
+           'change',
+           lang.hitch(this, this._onSelectedSymbolChange))
+      );
       this._bindUniqueSettingEvents();
       this._bindClassBreaksEvents();
       if(this.renderer){
-        if (!this.renderer.defaultSymbol) {
-          this._showOthersSymbol = false;
-        } else {
-          this._showOthersSymbol = true;
-        }
         this.showByRenderer(this.renderer);
       }
       else if(this.type){
@@ -173,10 +168,6 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
       this.renderer = renderer;
       this.type = null;
       var defaultSymbol = this.renderer && (this.renderer.defaultSymbol || this.renderer.symbol);
-      if (!defaultSymbol && this.renderer && this.renderer.infos && this.renderer.infos.length > 0) {
-        // Take the first one as default symbol, since some functionality doesn't work without this.
-        defaultSymbol = this.renderer.infos[0].symbol;
-      }
       this._setDefaultSymbol(defaultSymbol);
       this._updateRendererSelect();
 
@@ -240,44 +231,23 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
       }
     },
 
-    _getDefaultSymbolTr: function() {
-      var value = this.rendererSelect.get('value');
-      var targetNode;
-      if (value === 'unique') {
-        targetNode = this.uniqueSysTbody;
-      } else if (value === 'color' || value === 'size') {
-        targetNode = this.classBreaksTbody;
-      }
-      if (!targetNode) {
-        return null;
-      }
-      var symbolTrs = query('.default-symbol-tr', targetNode);
-      if (symbolTrs.length === 0) {
-        return null;
-      }
-      return symbolTrs[0];
-    },
-
     _onDefaultSymbolChange: function(newSymbol){
-      var tr = this._getDefaultSymbolTr();
-      if(tr){
-        tr.symbol = newSymbol;
-        var symbolDiv = query('.symbol-div', tr)[0];
-        this._drawSymbolPreview(symbolDiv, newSymbol);
-      }
-    },
+      html.empty(this.defaultSymPreviewDiv);
+      if(newSymbol){
+        var symbolNode = null;
+        if(symbolUtils.isSimpleLineSymbol(newSymbol) ||
+         symbolUtils.isCartographicLineSymbol(newSymbol)){
+          symbolNode = symbolUtils.createSymbolNode(newSymbol, {
+            width: 80,
+            height: 30
+          });
+        }
+        else{
+          symbolNode = symbolUtils.createSymbolNode(newSymbol);
+        }
 
-    _setDefaultSymbolStatus: function(status) {
-      var tr = this._getDefaultSymbolTr();
-      if(tr){
-        if (tr.checkbox.getStatus() !== status) {
-          if (status) {
-            tr.checkbox.setStatus(status);
-          } else {
-            this._showOthersSymbol = true;
-            tr.checkbox.setValue(true);
-            tr.checkbox.setStatus(status);
-          }
+        if(symbolNode){
+          html.place(symbolNode, this.defaultSymPreviewDiv);
         }
       }
     },
@@ -322,7 +292,6 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
 
     _onRendererSelectChange:function(){
       var value = this.rendererSelect.get('value');
-      this._showDefaultSymbol();
       if(value === 'simple'){
         html.setStyle(this.fieldSelectTr, 'display', 'none');
         html.setStyle(this.colorBlockTr, 'display', 'none');
@@ -331,6 +300,7 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
         html.setStyle(this.classCountTr, 'display', 'none');
         html.setStyle(this.uniqueSetting, 'display', 'none');
         html.setStyle(this.classBreaksSetting, 'display', 'none');
+        html.setStyle(this.defaultSymPreview, 'display', 'none');
         html.setStyle(this.symbolSizeDomainTr, 'display', 'none');
       }
       else if(value === 'unique'){
@@ -341,6 +311,7 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
         html.setStyle(this.classCountTr, 'display', 'none');
         html.setStyle(this.uniqueSetting, 'display', 'block');
         html.setStyle(this.classBreaksSetting, 'display', 'none');
+        html.setStyle(this.defaultSymPreview, 'display', 'block');
         html.setStyle(this.symbolSizeDomainTr, 'display', 'none');
         this._updateUniqueValueDivVisibility();
       }
@@ -351,6 +322,7 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
         html.setStyle(this.domainTr, 'display', 'table-row');
         html.setStyle(this.colorBarTr, 'display', 'table-row');
         html.setStyle(this.uniqueSetting, 'display', 'none');
+        html.setStyle(this.defaultSymPreview, 'display', 'block');
         html.setStyle(this.symbolSizeDomainTr, 'display', 'none');
         this._updateClassBreaksSettingVisibility();
       }
@@ -361,6 +333,7 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
         html.setStyle(this.domainTr, 'display', 'table-row');
         html.setStyle(this.classCountTr, 'display', 'table-row');
         html.setStyle(this.uniqueSetting, 'display', 'none');
+        html.setStyle(this.defaultSymPreview, 'display', 'block');
         html.setStyle(this.symbolSizeDomainTr, 'display', 'table-row');
         this._updateClassBreaksSettingVisibility();
       }
@@ -521,13 +494,12 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
       array.forEach(renderer.infos, lang.hitch(this, function(info){
         this._addUniqueValueTr(info.symbol, info.value, info.label || info.value);
       }));
-      this._addDefaultValueTr(this.uniqueSysTbody);
     },
 
     _getUniqueValueRenderer:function(){
       var defaultSym = this.defaultSymbolChooser.getSymbol();
       var field = this.fieldComboBox.get('value');
-      var renderer = new UniqueValueRenderer(this._showOthersSymbol ? defaultSym : null, field);
+      var renderer = new UniqueValueRenderer(defaultSym, field);
       var trs = query('.unique-symbol-tr', this.uniqueSysTbody);
       array.forEach(trs, lang.hitch(this, function(tr){
         renderer.addValue({
@@ -600,7 +572,6 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
         var color = colors[colorIndex];
         var symbol = this._getUniqueSymbol(color);
         this._addUniqueValueTr(symbol, uniqueValue, uniqueValue);
-        this._setDefaultSymbolStatus(true);
       }
       this.uniqueEditValue.value = '';
     },
@@ -620,12 +591,7 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
           '</td>' +
         '</tr>';
       var trDom = html.toDom(s);
-      var defaultSymbolTr = query('.default-symbol-tr', this.uniqueSysTbody);
-      if (defaultSymbolTr.length > 0) {
-        html.place(trDom, defaultSymbolTr[0], 'before');
-      } else {
-        html.place(trDom, this.uniqueSysTbody);
-      }
+      html.place(trDom, this.uniqueSysTbody);
       this._updateUniqueSymTableStyle();
       var symbolDiv = query('.symbol-div', trDom)[0];
       var labelDiv = query('.label-div', trDom)[0];
@@ -652,7 +618,7 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
     },
 
     _selectUniqueValueTr:function(tr){
-      query('tr', this.uniqueSysTbody).removeClass('selected');
+      query('.unique-symbol-tr', this.uniqueSysTbody).removeClass('selected');
       html.addClass(tr, 'selected');
       this._selectedUniqueValueTr = tr;
       this.uniqueSelectedValue.value = tr.value;
@@ -699,16 +665,9 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
     },
 
     _updateUniqueValueDivVisibility:function(){
-      var trs = query('tr', this.uniqueSysTbody);
-      if (trs.length === 0) {
-        this._addDefaultValueTr(this.uniqueSysTbody);
-        this._setDefaultSymbolStatus(false);
-      } else if (trs.length === 1 && html.hasClass(trs[0], 'default-symbol-tr')) {
-        this._setDefaultSymbolStatus(false);
-      }
-      trs.removeClass('selected');
-      query('.default-symbol-tr', this.uniqueSysTbody).addClass('selected');
-      html.setStyle(this.uniqueValueDiv, 'display', 'block');
+      var trs = query('.unique-symbol-tr', this.uniqueSysTbody);
+      var display = trs.length === 0 ? 'none' : 'block';
+      html.setStyle(this.uniqueValueDiv, 'display', display);
     },
 
     /* class breaks renderer */
@@ -718,11 +677,17 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
       this.own(on(this.classCount, 'change', lang.hitch(this, this._updateClassBreaksTable)));
       this.own(on(this.selectedFrom, 'change', lang.hitch(this, this._onSelectedRangeChange)));
       this.own(on(this.selectedTo, 'change', lang.hitch(this, this._onSelectedRangeChange)));
-      this.own(on(this.classBreakSelectedLabel, 'change', lang.hitch(this, this._onClassBreakSelectedLabelChange)));
-
+      this.own(
+        on(this.classBreakSelectedLabel,
+          'change',
+          lang.hitch(this, this._onClassBreakSelectedLabelChange))
+      );
       //color
-      this.own(on(this.classBreaksColorSelect, 'change', lang.hitch(this, this._updateClassBreaksTable)));
-
+      this.own(
+        on(this.classBreaksColorSelect,
+          'change',
+          lang.hitch(this, this._updateClassBreaksTable))
+      );
       //size
       this.own(on(this.minSymbolSize, 'change', lang.hitch(this, this._updateClassBreaksTable)));
       this.own(on(this.maxSymbolSize, 'change', lang.hitch(this, this._updateClassBreaksTable)));
@@ -746,7 +711,6 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
       }));
       this.minDomain.set('value', min);
       this.maxDomain.set('value', max);
-      this._addDefaultValueTr(this.classBreaksTbody);
 
       if(this.type === 'marker'){
         var minSymSize = Infinity, maxSymSize = -Infinity;
@@ -771,7 +735,7 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
     _getClassBreaksRenderer:function(){
       var defaultSym = this.defaultSymbolChooser.getSymbol();
       var field = this.fieldComboBox.get('value');
-      var renderer = new ClassBreaksRenderer(this._showOthersSymbol ? defaultSym : null, field);
+      var renderer = new ClassBreaksRenderer(defaultSym, field);
       var trs = query('.class-breaks-tr', this.classBreaksTbody);
       array.forEach(trs, lang.hitch(this, function(tr){
         renderer.addBreak({
@@ -804,7 +768,7 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
         this.selectedTo.set('value', to);
       }
       var tr = this._selectedClassBreakTr;
-      if(tr && (tr.from !== from || tr.to !== to)){ // update label only when range changed
+      if(tr){
         tr.from = from;
         tr.to = to;
         var label = from + " — " + to;
@@ -876,12 +840,11 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
         var label = from + " — " + to;
         this._addClassBreaksTr(symbols[i], from, to, label);
       }
-      this._addDefaultValueTr(this.classBreaksTbody);
       this._updateClassBreaksSettingVisibility();
     },
 
     _selectClassBreaksTr:function(tr){
-      var trs = query('tr', this.classBreaksTbody);
+      var trs = query('.class-breaks-tr', this.classBreaksTbody);
       trs.removeClass('selected');
       html.addClass(tr, 'selected');
       this._selectedClassBreakTr = tr;
@@ -909,12 +872,7 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
           '</td>' +
         '</tr>';
       var tr = html.toDom(s);
-      var defaultSymbolTr = query('.default-symbol-tr', this.classBreaksTbody);
-      if (defaultSymbolTr.length > 0) {
-        html.place(tr, defaultSymbolTr[0], 'before');
-      } else {
-        html.place(tr, this.classBreaksTbody);
-      }
+      html.place(tr, this.classBreaksTbody);
       tr.symbol = symbol;
       tr.from = from;
       tr.to = to;
@@ -940,64 +898,12 @@ function(declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin,
       html.setStyle(this.classBreaksSetting, 'display', 'block');
     },
 
-    _addDefaultValueTr:function(targetNode){
-      var node = query('.default-symbol-tr', targetNode);
-      if (node.length > 0) {
-        return;
-      }
-      var s = '', symbol = this.defaultSymbolChooser.getSymbol(), label = this.nls.defaultSymbol;
-      s = '<tr class="default-symbol-tr">' +
-          '<td class="symbol-td">' +
-            '<div class="symbol-div"></div>' +
-          '</td>' +
-          '<td class="label-td">' +
-            '<div wrap class="label-div"></div>' +
-          '</td>' +
-          '<td class="check-td">' +
-            '<div class="check-div"></div>' +
-          '</td>' +
-        '</tr>';
-      var trDom = html.toDom(s);
-      html.place(trDom, targetNode);
-      var symbolDiv = query('.symbol-div', trDom)[0];
-      var labelDiv = query('.label-div', trDom)[0];
-      var checkDiv = query('.check-div', trDom)[0];
-      html.setAttr(checkDiv, 'title', this.nls.othersSymbolTip);
-      var checkbox = new CheckBox({
-        checked: this._showOthersSymbol
-      });
-      checkbox.placeAt(checkDiv);
-      checkbox.startup();
-      labelDiv.innerHTML = this.nls.othersSymbol;
-      this.own(on(trDom, 'click', lang.hitch(this, function(){
-        var trs = query('tr', targetNode);
-        trs.removeClass('selected');
-        html.addClass(trDom, 'selected');
-        this._showDefaultSymbol();
-      })));
-      this.own(on(checkbox, 'change', lang.hitch(this, function(checked){
-        this._showOthersSymbol = checked;
-      })));
-      this._drawSymbolPreview(symbolDiv, symbol);
-      trDom.symbol = symbol;
-      trDom.label = label;
-      trDom.checkbox = checkbox;
-      html.setStyle(this.uniqueValueDiv, 'display', 'block');
-    },
-
     _updateClassBreaksTableStyle:function(){},
 
     _updateClassBreaksSettingVisibility:function(){
-      var trs = query('tr', this.classBreaksTbody);
-      if (trs.length === 0) {
-        this._addDefaultValueTr(this.classBreaksTbody);
-        this._setDefaultSymbolStatus(false);
-      } else if (trs.length === 1 && html.hasClass(trs[0], 'default-symbol-tr')) {
-        this._setDefaultSymbolStatus(false);
-      }
-      trs.removeClass('selected');
-      query('.default-symbol-tr', this.classBreaksTbody).addClass('selected');
-      html.setStyle(this.classBreaksSetting, 'display', 'block');
+      var trs = query('.class-breaks-tr', this.classBreaksTbody);
+      var display = trs.length === 0 ? 'none' : 'block';
+      html.setStyle(this.classBreaksSetting, 'display', display);
     },
 
     //color

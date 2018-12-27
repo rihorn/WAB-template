@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Copyright © 2014 - 2018 Esri. All Rights Reserved.
+// Copyright © 2014 Esri. All Rights Reserved.
 //
 // Licensed under the Apache License Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ define([
     TabContainer, jimuUtils, Select, CheckBox, Table) {
     return declare([BaseWidgetSetting, _WidgetsInTemplateMixin], {
       baseClass: 'jimu-widget-draw-setting',
-      locationUnits:null,
       distanceUnits:null,
       areaUnits:null,
 
@@ -41,19 +40,6 @@ define([
 
       postMixInProperties:function(){
         this.inherited(arguments);
-        this.jimuNls = window.jimuNls;
-
-        this.locationUnits = [{
-          value: 'DEGREES',
-          label: this.jimuNls.units.degrees,
-          abbr: this.jimuNls.units.degreesAbbr || 'dd',
-          format: "YN XE"
-        }, {
-          value: 'DEGREE-MINUTE-SECOND',
-          label: this.jimuNls.units.degreeMS,
-          abbr: this.jimuNls.units.degreeMSAbbr || 'dms',
-          format: "A°B'C\"N X°Y'Z\"E"
-        }];
 
         this.distanceUnits = [{
           value: 'KILOMETERS',
@@ -88,15 +74,7 @@ define([
           conversion: jimuUtils.localizeNumber(1.0936133, {
             places: 7
           })
-        }, {
-          value: 'NAUTICAL_MILES',
-          label: this.nls.nauticalmiles,
-          abbr: this.nls.nauticalmilesAbbreviation || 'nm',
-          conversion: jimuUtils.localizeNumber(5.39956803455, {
-            places: 9
-          }) + 'e-4'
-        }
-        ];
+        }];
 
         this.areaUnits = [{
           value: 'SQUARE_KILOMETERS',
@@ -112,7 +90,7 @@ define([
           conversion: jimuUtils.localizeNumber(3.861021, {
               places: 6
             }) + 'e-7'
-          //0.0000003861021
+            //0.0000003861021
         }, {
           value: 'ACRES',
           label: this.nls.acres,
@@ -151,30 +129,6 @@ define([
 
       postCreate: function() {
         this.inherited(arguments);
-
-        var locationFields = [{name: "label", title: this.nls.label, "class": "label", type: "empty"}, {
-          name: "abbr",
-          title: this.nls.abbr,
-          "class": "abbr",
-          type: "text",
-          editable: false
-        }, {
-          name: "format",
-          title: this.jimuNls.common.format,
-          "class": "format",
-          type: "text",
-          editable: false
-        }, {
-          name: "actions",
-          title: this.nls.actions,
-          "class": "actions",
-          type: "actions",
-          actions: ["up", "down", "delete"]
-        }];
-        this.locationTable = new Table({
-          fields: locationFields
-        });
-        this.locationTable.placeAt(this.locationTableDiv);
 
         var distanceFields = [{name: "label", title: this.nls.label, "class": "label", type: "empty"}, {
           name: "abbr",
@@ -230,17 +184,8 @@ define([
         });
         html.addClass(this.cbxOperationalLayer.domNode, 'tip');
         this.cbxOperationalLayer.placeAt(this.domNode);
-        this.own(on(this.btnAddLocation, 'click', lang.hitch(this, this._addLocation)));
         this.own(on(this.btnAddDistance, 'click', lang.hitch(this, this._addDistance)));
         this.own(on(this.btnAddArea, 'click', lang.hitch(this, this._addArea)));
-        this.own(on(this.locationTable, 'row-delete', lang.hitch(this, function(tr) {
-          if (tr.select) {
-            tr.select.destroy();
-            delete tr.select;
-          }
-          this._resetLocationSelectOptions();
-          this._checkStatusForBtnAddLocation();
-        })));
         this.own(on(this.distanceTable, 'row-delete', lang.hitch(this, function(tr) {
           if (tr.select) {
             tr.select.destroy();
@@ -265,9 +210,6 @@ define([
 
         this.tabContainer = new TabContainer({
           tabs: [{
-            title: this.nls.location,
-            content: this.locationTabNode
-          }, {
             title: this.nls.distance,
             content: this.distanceTabNode
           }, {
@@ -282,34 +224,9 @@ define([
       setConfig: function(config) {
         config.isOperationalLayer = !!config.isOperationalLayer;
         this.config = config;
-        if(!this.config.locationUnits){ //for old config
-          var locationUnits = [];
-          for(var key in this.locationUnits){
-            var unitInfo = this.locationUnits[key];
-            locationUnits.push({
-              unit: unitInfo.value,
-              addr:unitInfo.abbr,
-              format: unitInfo.format
-            });
-          }
-          this.config.locationUnits = locationUnits;
-        }
-        this._setLocationTable(this.config.locationUnits);
         this._setDistanceTable(this.config.distanceUnits);
         this._setAreaTable(this.config.areaUnits);
         this.cbxOperationalLayer.setValue(config.isOperationalLayer);
-      },
-
-      _setLocationTable:function(locationUnits){
-        this.locationTable.clear();
-        array.forEach(locationUnits, lang.hitch(this, function(item){
-          var defaultUnitInfo = this._getLocationUnitInfo(item.unit);
-          if(!defaultUnitInfo){
-            return;
-          }
-          defaultUnitInfo.abbr = item.abbr;
-          this._addLocationUnitRow(defaultUnitInfo);
-        }));
       },
 
       _setDistanceTable:function(distanceUnits){
@@ -338,32 +255,14 @@ define([
 
       getConfig: function() {
         var config = {
-          locationUnits:[],
           distanceUnits:[],
           areaUnits:[],
           isOperationalLayer: false
         };
-        config.locationUnits = this._getLocationConfig();
         config.distanceUnits = this._getDistanceConfig();
         config.areaUnits = this._getAreaConfig();
         config.isOperationalLayer = this.cbxOperationalLayer.getValue();
         return config;
-      },
-
-      _getLocationConfig:function(){
-        var result = [];
-        var trs = this.locationTable.getRows();
-        result = array.map(trs, lang.hitch(this, function(tr){
-          var data = this.locationTable.getRowData(tr);
-          var select = tr.select;
-          var unitInfo = {
-            unit:select.get('value'),
-            abbr:data.abbr,
-            format:data.format
-          };
-          return unitInfo;
-        }));
-        return result;
       },
 
       _getDistanceConfig:function(){
@@ -394,126 +293,6 @@ define([
           return unitInfo;
         }));
         return result;
-      },
-
-      _getAllLocationUnitValues:function(){
-        var locationUnitValues = array.map(this.locationUnits, lang.hitch(this, function(item){
-          return item.value;
-        }));
-        return locationUnitValues;
-      },
-
-      _getUsedLocationUnitValues:function(){
-        var trs = this.locationTable.getRows();
-        var usedLocationUnitValues = array.map(trs, lang.hitch(this, function(tr){
-          return tr.select.get('value');
-        }));
-        return usedLocationUnitValues;
-      },
-
-      _getNotUsedLocationUnitValues:function(){
-        var allValues = this._getAllLocationUnitValues();
-        var usedValues = this._getUsedLocationUnitValues();
-        var notUsedValues = array.filter(allValues, lang.hitch(this, function(item){
-          return array.indexOf(usedValues, item) < 0;
-        }));
-        return notUsedValues;
-      },
-
-      _getLocationUnitInfo:function(value){
-        var result = null;
-        var units = array.filter(this.locationUnits, lang.hitch(this, function(unit){
-          return unit.value === value;
-        }));
-        if(units.length > 0){
-          result = lang.mixin({}, units[0]);
-        }
-        return result;
-      },
-
-      _addLocation:function(){
-        var notUsedValues = this._getNotUsedLocationUnitValues();
-        if(notUsedValues.length === 0){
-          return;
-        }
-        var value = notUsedValues[0];
-        var unitInfo = this._getLocationUnitInfo(value);
-        this._addLocationUnitRow(unitInfo);
-      },
-
-      _checkStatusForBtnAddLocation: function(){
-        var notUsedValues = this._getNotUsedLocationUnitValues();
-        if(notUsedValues.length === 0){
-          html.addClass(this.btnAddLocation, this._disabledClass);
-          html.addClass(this.btnAddLocationIcon, this._disabledClass);
-        }else{
-          html.removeClass(this.btnAddLocation, this._disabledClass);
-          html.removeClass(this.btnAddLocationIcon, this._disabledClass);
-        }
-      },
-
-      _addLocationUnitRow:function(unitInfo){
-        var rowData = {
-          abbr:unitInfo.abbr,
-          format:unitInfo.format
-        };
-        var result = this.locationTable.addRow(rowData);
-        if(result.success && result.tr){
-          var tr = result.tr;
-          var td = query('.simple-table-cell', tr)[0];
-          html.setStyle(td, "verticalAlign", "middle");
-          var style = "width:100%;height:18px;line-height:18px;";
-          var select = new Select({style: style});
-          select.placeAt(td);
-          select.startup();
-          select.addOption({
-            value:unitInfo.value,
-            label:unitInfo.label,
-            selected:true
-          });
-          this.own(on(select, 'change', lang.hitch(this, this._resetLocationSelectOptions)));
-          tr.select = select;
-        }
-        this._resetLocationSelectOptions();
-        this._checkStatusForBtnAddLocation();
-      },
-
-      _showCorrectLocationInfoBySelectedOption:function(tr){
-        var select = tr.select;
-        var unitInfo = this._getLocationUnitInfo(select.value);
-        var rowData = {
-          abbr:unitInfo.abbr,
-          format:unitInfo.format
-        };
-        this.locationTable.editRow(tr, rowData);
-      },
-
-      _resetLocationSelectOptions:function(){
-        var trs = this.locationTable.getRows();
-        var selects = array.map(trs, lang.hitch(this, function(tr){
-          return tr.select;
-        }));
-        var notUsedValues = this._getNotUsedLocationUnitValues();
-        var notUsedUnitsInfo = array.map(notUsedValues, lang.hitch(this, function(value){
-          return this._getLocationUnitInfo(value);
-        }));
-        array.forEach(selects, lang.hitch(this, function(select, index){
-          var currentValue = select.get('value');
-          var notSelectedOptions = array.filter(select.getOptions(),
-            lang.hitch(this, function(option){
-            return option.value !== currentValue;
-          }));
-          select.removeOption(notSelectedOptions);
-          array.forEach(notUsedUnitsInfo, lang.hitch(this, function(unitInfo){
-            select.addOption({
-              value:unitInfo.value,
-              label:unitInfo.label
-            });
-          }));
-          select.set('value', currentValue);
-          var tr = trs[index];
-          this._showCorrectLocationInfoBySelectedOption(tr);
-        }));
       },
 
       _getAllDistanceUnitValues:function(){
@@ -582,8 +361,7 @@ define([
           var tr = result.tr;
           var td = query('.simple-table-cell', tr)[0];
           html.setStyle(td, "verticalAlign", "middle");
-          var style = "width:100%;height:18px;line-height:18px;";
-          var select = new Select({style: style});
+          var select = new Select({style:"width:100%;height:18px;line-height:18px;"});
           select.placeAt(td);
           select.startup();
           select.addOption({
@@ -702,8 +480,7 @@ define([
           var tr = result.tr;
           var td = query('.simple-table-cell', tr)[0];
           html.setStyle(td, "verticalAlign", "middle");
-          var style = "width:100%;height:18px;line-height:18px;";
-          var select = new Select({style: style});
+          var select = new Select({style:"width:100%;height:18px;line-height:18px;"});
           select.placeAt(td);
           select.startup();
           select.addOption({
