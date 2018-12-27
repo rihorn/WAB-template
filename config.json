@@ -19,7 +19,7 @@
   "title": "Template Title Goes Here",
   "subtitle": "",
   "keepAppState": false,
-  "logo": "images/app-logo.png",
+  "logo": "images/AGOL.png",
   "geometryService": "http://utility.arcgisonline.com/arcgis/rest/services/Geometry/GeometryServer",
   "links": [],
   "widgetOnScreen": {
