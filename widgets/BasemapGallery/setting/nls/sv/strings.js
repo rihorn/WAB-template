@@ -7,7 +7,7 @@
     title: "Titel",
     titlePH: "Baskartans titel",
     thumbnail: "Miniatyrbild",
-    thumbnailHint: "Klicka på bilden för att uppdatera den",
+    thumbnailHint: "Klicka på bilden för att uppdatera",
     url: "URL",
     urlPH: "Lager-URL",
     addlayer: "Lägg till baskarta",
@@ -21,11 +21,11 @@
     ok: "OK",
     cancel: "Avbryt",
     result: "Sparad",
-    spError: "Alla baskartor som läggs till i galleriet måste ha samma geografiska referens.",
+    spError: "Alla baskartor som läggs till i galleriet måste ha samma geografiska referenser.",
     invalidTitle1:"Baskartan '",
     invalidTitle2:"' finns redan. Välj en annan titel.",
     invalidBasemapUrl1: "Den här typen av lager går inte att använda som baskarta.",
-    invalidBasemapUrl2: "Den baskarta du lägger till har en annan geografisk referens än den aktuella kartan.",
+    invalidBasemapUrl2: "Annan geografisk referens med aktuell karta.",
     addBaselayer: "Lägg till baskartlager"
   })
 );

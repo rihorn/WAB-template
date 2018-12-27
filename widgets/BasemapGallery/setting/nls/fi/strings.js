@@ -21,11 +21,11 @@
     ok: "OK",
     cancel: "Peruuta",
     result: "Tallennus onnistui",
-    spError: "Kaikilla galleriaan lisätyillä taustakartoilla täytyy olla sama koordinaattijärjestelmä.",
+    spError: "Kaikilla galleriaan lisätyillä taustakartoilla on oltava sama koordinaatistotieto.",
     invalidTitle1:"Taustakartta '",
     invalidTitle2:"' on jo olemassa. Valitse toinen otsikko.",
     invalidBasemapUrl1: "Tämän tyyppistä karttatasoa ei voi käyttää taustakarttana.",
-    invalidBasemapUrl2: "Lisättävän taustakartan koordinaattijärjestelmä ei ole sama kuin nykyisessä kartassa.",
+    invalidBasemapUrl2: "Nykyisellä kartalla on erilainen koordinaatistotieto.",
     addBaselayer: "Lisää taustakarttataso"
   })
 );

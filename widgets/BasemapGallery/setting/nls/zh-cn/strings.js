@@ -21,11 +21,11 @@
     ok: "确定",
     cancel: "取消",
     result: "已成功保存",
-    spError: "添加到图库的所有底图必须具有相同的空间参考。",
+    spError: "添加到图库的所有底图需要具有相同的空间参考。",
     invalidTitle1:"底图 '",
     invalidTitle2:"' 已存在。请选择其它标题。",
     invalidBasemapUrl1: "此类型的图层不能用作底图。",
-    invalidBasemapUrl2: "您正在添加的底图与当前地图拥有不同的空间参考。",
+    invalidBasemapUrl2: "当前地图的空间参考不同。",
     addBaselayer: "添加底图图层"
   })
 );

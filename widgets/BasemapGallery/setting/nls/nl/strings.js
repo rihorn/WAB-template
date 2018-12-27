@@ -7,7 +7,7 @@
     title: "Titel",
     titlePH: "Titel van basiskaart",
     thumbnail: "Thumbnail",
-    thumbnailHint: "Klik op de afbeelding om deze te bewerken",
+    thumbnailHint: "Klik op de afbeelding om bij te werken",
     url: "URL",
     urlPH: "Laag-URL",
     addlayer: "Basiskaart toevoegen",
@@ -21,11 +21,11 @@
     ok: "OK",
     cancel: "Annuleren",
     result: "Opslaan is gelukt",
-    spError: "Alle basiskaarten die aan de galerij zijn toegevoegd, moeten dezelfde ruimtelijke referentie hebben.",
+    spError: "Alle basiskaarten die aan de galerij zijn toegevoegd, vereisen dezelfde ruimtelijke referenties.",
     invalidTitle1:"Een basiskaart '",
     invalidTitle2:"' bestaat al. Kies een andere titel.",
     invalidBasemapUrl1: "Dit laagtype kan niet worden gebruikt als een basiskaart.",
-    invalidBasemapUrl2: "De basiskaart die u toevoegt heeft een andere ruimtelijke referentie dan de huidige kaart.",
+    invalidBasemapUrl2: "Verschillende ruimtelijke referentie met huidige kaart.",
     addBaselayer: "Basiskaartlaag toevoegen"
   })
 );

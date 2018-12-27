@@ -6,7 +6,6 @@ define({
   "cs": 1,
   "da": 1,
   "de": 1,
-  "el": 1,
   "es": 1,
   "et": 1,
   "fi": 1,
@@ -28,7 +27,5 @@ define({
   "th": 1,
   "tr": 1,
   "vi": 1,
-  "zh-cn": 1,
-  "zh-hk": 1,
-  "zh-tw": 1
+  "zh-cn": 1
 });

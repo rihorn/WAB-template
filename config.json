@@ -319,12 +319,21 @@
         "icon": "widgets/Print/images/icon.png?wab_dv=2.1"
       },
       {
+        "name": "StreetView",
+        "label": "Google Street View",
+        "version": "1.1.0.2",
+        "uri": "widgets/StreetView/Widget",
+        "config": "configs/StreetView/config_Google Street View.json",
+        "index": 6,
+        "id": "widgets/StreetView/Widget"
+    },
+      {
         "name": "Share",
         "label": "Share",
         "version": "1.2.0.1",
         "uri": "widgets/Share/Widget",
         "config": "configs/Share/config_Share.json",
-        "index": 6,
+        "index": 7,
         "id": "widgets_Share_Widget_21",
         "icon": "widgets/Share/images/icon.png?wab_dv=2.1"
       }

@@ -7,7 +7,7 @@
     title: "Nadpis",
     titlePH: "Název podkladové mapy",
     thumbnail: "Miniatura",
-    thumbnailHint: "Kliknutím na obrázek jej aktualizujete.",
+    thumbnailHint: "Kliknutím na obrázek provedete aktualizaci.",
     url: "URL",
     urlPH: "Adresa URL vrstvy",
     addlayer: "Přidat podkladovou mapu",
@@ -25,7 +25,7 @@
     invalidTitle1:"Podkladová mapa \'",
     invalidTitle2:"\' již existuje. Zvolte jiný název.",
     invalidBasemapUrl1: "Vrstvu tohoto typu nelze použít jako podkladovou mapu.",
-    invalidBasemapUrl2: "Souřadnicový systém přidávané podkladové mapy se liší od souřadnicového systému současné mapy.",
+    invalidBasemapUrl2: "Souřadnicový systém se liší od systému aktuální mapy.",
     addBaselayer: "Přidat vrstvu podkladové mapy"
   })
 );

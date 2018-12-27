@@ -7,7 +7,7 @@
     title: "Nosaukums",
     titlePH: "Pamatkartes nosaukums",
     thumbnail: "Sīktēls",
-    thumbnailHint: "Noklikšķiniet uz attēla, lai atjauninātu",
+    thumbnailHint: "Noklikšķiniet uz attēla, lai to atjauninātu",
     url: "URL",
     urlPH: "Slāņa URL",
     addlayer: "Pievienot pamatkarti",
@@ -25,7 +25,7 @@
     invalidTitle1:"Pamatkarte '",
     invalidTitle2:"' jau pastāv. Lūdzu, izvēlieties citu nosaukumu.",
     invalidBasemapUrl1: "Šo slāņa tipu nevar izmantot kā pamatkarti.",
-    invalidBasemapUrl2: "Pamatkartei, kas pašlaik tiek pievienota, telpiskā atskaite atšķiras no pašreizējās kartes.",
+    invalidBasemapUrl2: "Telpiskā atskaite atšķiras no pašreizējās kartes.",
     addBaselayer: "Pievienot pamatkartes slāni"
   })
 );

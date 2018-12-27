@@ -20,6 +20,7 @@ define([
     "dojo/Deferred",
     'jimu/BaseWidget',
     'jimu/portalUtils',
+    "jimu/dijit/Message",
     'jimu/PanelManager',
     "jimu/SpatialReference/wkidUtils",
     'jimu/portalUrlUtils',
@@ -31,6 +32,7 @@ define([
     'dojo/_base/array',
     "dojo/_base/html",
     "dojo/query",
+    'esri/request',
     'dojo/on',
     'dojo/promise/all',
     './utils'
@@ -41,6 +43,7 @@ define([
     Deferred,
     BaseWidget,
     portalUtils,
+    Message,
     PanelManager,
     SRUtils,
     portalUrlUtils,
@@ -52,6 +55,7 @@ define([
     array,
     html,
     query,
+    esriRequest,
     on,
     all,
     utils) {
@@ -113,9 +117,6 @@ define([
           var webmapBasemap = this._getWebmapBasemap();
 
           basemaps = array.filter(basemaps, function(basemap) {
-            if(!basemap || !basemap.title) {
-              return false;
-            }
             var bingKeyResult;
             var spatialReferenceResult;
             // first, filter bingMaps
@@ -152,7 +153,8 @@ define([
           if(i === basemaps.length) {
             basemaps.push(webmapBasemap);
           }
-
+          
+        
           for (i = 0; i < basemaps.length; i++) {
             var n = basemaps[i].layers.length;
             var layersArray = [];
@@ -219,7 +221,7 @@ define([
         // if (layers.length > 0) {
         //   this.publishData(layers);
         // }
-        if (this.isOnScreen) {
+        if (this.isPreload) {
           PanelManager.getInstance().closePanel(this.id + '_panel');
         }
       }

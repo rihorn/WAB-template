@@ -21,11 +21,11 @@
     ok: "OK",
     cancel: "Anuluj",
     result: "Zapisano pomyślnie",
-    spError: "Wszystkie mapy bazowe dodane do galerii muszą mieć to samo odniesienie przestrzenne.",
+    spError: "Wszystkie mapy bazowe dodane do galerii wymagają tych samych odniesień przestrzennych.",
     invalidTitle1:"Mapa bazowa '",
     invalidTitle2:"' już istnieje. Wybierz inny tytuł.",
     invalidBasemapUrl1: "Warstwy tego typu nie można użyć jako mapy bazowej.",
-    invalidBasemapUrl2: "Dodawana mapa bazowa ma inne odniesienie przestrzenne od bieżącej mapy.",
+    invalidBasemapUrl2: "Bieżąca mapa używa innego odniesienia przestrzennego.",
     addBaselayer: "Dodaj warstwę mapy bazowej"
   })
 );

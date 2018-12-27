@@ -7,7 +7,7 @@
     title: "Pealkiri",
     titlePH: "Aluskaardi pealkiri",
     thumbnail: "Pisipilt",
-    thumbnailHint: "Uuendamiseks klõpsake pilti",
+    thumbnailHint: "Kliki uuendamiseks pilti",
     url: "URL",
     urlPH: "Kihi URL",
     addlayer: "Lisa aluskaart",
@@ -21,11 +21,11 @@
     ok: "OK",
     cancel: "Tühista",
     result: "Salvestamine õnnestus",
-    spError: "Kõigil galeriisse lisatud aluskaartidel peab olema samasugune koordinaatsüsteem.",
-    invalidTitle1:"Aluskaart nimega '",
-    invalidTitle2:"' on juba olemas. Valige uus pealkiri.",
+    spError: "Kõik galeriisse lisatud aluskaardid peavad kasutama samasugust koordinaatsüsteemi.",
+    invalidTitle1:"Aluskaart nimega",
+    invalidTitle2:"on juba olemas. Valige uus pealkiri.",
     invalidBasemapUrl1: "Seda tüüpi kihti ei saa kasutada aluskaardina.",
-    invalidBasemapUrl2: "Lisatav aluskaart kasutab praegusest kaardist erinevat koordinaatsüsteemi.",
+    invalidBasemapUrl2: "Praegune kaart kasutab erinevat koordinaatsüsteemi.",
     addBaselayer: "Lisa aluskaardi kiht"
   })
 );
